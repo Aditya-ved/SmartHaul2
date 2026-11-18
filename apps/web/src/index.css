@@ -1,0 +1,443 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Manrope Variable", "Manrope", ui-sans-serif, system-ui, sans-serif;
+  --color-ink: #0a0a0a;
+  --color-body: #5e5e5e;
+  --color-mute: #9a9a9a;
+  --color-surface: #f7f7f7;
+  --color-hairline: #e5e5e5;
+  --color-accent: #533afd;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  min-width: 320px;
+  margin: 0;
+  color: #0a0a0a;
+  background: #ffffff;
+  font-family: "Manrope Variable", "Manrope", ui-sans-serif, system-ui, sans-serif;
+  letter-spacing: -0.025em;
+  -webkit-font-smoothing: antialiased;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+html[data-theme="dark"] body {
+  background: #0b0b0e !important;
+  color: #f5f5f7 !important;
+}
+
+html[data-theme="dark"] #root {
+  min-height: 100vh;
+  background: #0b0b0e;
+}
+
+html[data-theme="dark"] .bg-white,
+html[data-theme="dark"] header,
+html[data-theme="dark"] aside,
+html[data-theme="dark"] [class*="Card"] {
+  background-color: #141418 !important;
+}
+
+html[data-theme="dark"] [class*="border-[#e5e5e5]"],
+html[data-theme="dark"] .border-t,
+html[data-theme="dark"] .border-b,
+html[data-theme="dark"] [class*="divide-[#e5e5e5]"] {
+  border-color: #26262d !important;
+}
+
+html[data-theme="dark"] h1,
+html[data-theme="dark"] h2,
+html[data-theme="dark"] h3,
+html[data-theme="dark"] h4,
+html[data-theme="dark"] strong,
+html[data-theme="dark"] [class*="text-[#0a0a0a]"] {
+  color: #f5f5f7 !important;
+}
+
+html[data-theme="dark"] [class*="text-[#5e5e5e]"],
+html[data-theme="dark"] [class*="text-[#9a9a9a]"] {
+  color: #a1a1aa !important;
+}
+
+html[data-theme="dark"] [class*="bg-[#f7f7f7]"],
+html[data-theme="dark"] [class*="bg-[#efefef]"] {
+  background-color: #1b1b21 !important;
+}
+
+html[data-theme="dark"] input,
+html[data-theme="dark"] select,
+html[data-theme="dark"] textarea {
+  background: #1b1b21;
+  color: #f5f5f7;
+  border-color: #26262d;
+}
+
+html[data-theme="dark"] [class*="rounded-[16px]"][class*="border"],
+html[data-theme="dark"] [class*="rounded-[18px]"][class*="border"],
+html[data-theme="dark"] [class*="rounded-[20px]"][class*="border"],
+html[data-theme="dark"] [class*="rounded-[24px]"][class*="border"] {
+  background-color: #141418 !important;
+  border-color: #26262d !important;
+  color: #f5f5f7 !important;
+}
+
+html[data-theme="dark"] [class*="border-[#e5e5e5]"],
+html[data-theme="dark"] [class*="border-[#d4d4d4]"] {
+  border-color: #26262d !important;
+}
+
+html[data-theme="dark"] [role="dialog"] {
+  background: #141418 !important;
+  color: #f5f5f7 !important;
+  border-color: #26262d !important;
+}
+
+html[data-theme="dark"] [role="dialog"] p,
+html[data-theme="dark"] [role="dialog"] span,
+html[data-theme="dark"] [role="dialog"] label {
+  color: #a1a1aa;
+}
+
+html[data-theme="dark"] [role="dialog"] h1,
+html[data-theme="dark"] [role="dialog"] h2,
+html[data-theme="dark"] [role="dialog"] h3,
+html[data-theme="dark"] [role="dialog"] strong {
+  color: #f5f5f7;
+}
+
+button,
+a {
+  -webkit-tap-highlight-color: transparent;
+}
+
+input,
+select,
+textarea {
+  width: 100%;
+  min-height: 48px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: #efefef;
+  color: #0a0a0a;
+  padding: 12px 16px;
+  outline: none;
+  transition: border-color 150ms ease, background 150ms ease, box-shadow 150ms ease;
+}
+
+input:focus,
+select:focus,
+textarea:focus {
+  border-color: #533afd;
+  background: #ffffff;
+  box-shadow: 0 0 0 2px #ffffff, 0 0 0 4px #533afd;
+}
+
+textarea {
+  min-height: 96px;
+  resize: vertical;
+}
+
+label {
+  color: #0a0a0a;
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 16px;
+}
+
+.vehicle-number,
+.mono,
+code {
+  font-family: "JetBrains Mono Variable", ui-monospace, monospace;
+  font-variant-numeric: tabular-nums;
+}
+
+/* SmartHaul design system: dashboard shell and shared data surfaces */
+.dashboard-layout,
+.fleet-page,
+.shipment-page,
+.driver-page,
+.admin-page {
+  background: #f7f7f7 !important;
+  color: #0a0a0a !important;
+  font-family: "Manrope Variable", "Manrope", ui-sans-serif, system-ui, sans-serif !important;
+}
+
+.dashboard-sidebar {
+  width: 248px !important;
+  min-height: 100vh !important;
+  border-right: 1px solid #e5e5e5;
+  background: #ffffff !important;
+  color: #5e5e5e !important;
+  padding: 16px !important;
+}
+
+.dashboard-brand { color: #0a0a0a !important; margin: 4px 10px 32px !important; }
+.dashboard-brand-icon { border-radius: 999px !important; background: #0a0a0a !important; }
+.dashboard-sidebar-label { color: #9a9a9a !important; }
+.dashboard-nav a,
+.dashboard-nav a:link {
+  height: 40px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border-radius: 8px;
+  padding: 8px 12px;
+  color: #5e5e5e;
+  text-decoration: none;
+  font-size: 14px;
+  font-weight: 500;
+}
+.dashboard-nav a.active,
+.dashboard-nav a:hover {
+  background: #ecebff;
+  color: #533afd;
+}
+.dashboard-sidebar-user { border-color: #e5e5e5 !important; }
+.dashboard-sidebar-user .user-avatar { background: #efefef !important; color: #0a0a0a !important; }
+.dashboard-logout { color: #5e5e5e !important; border-radius: 999px !important; }
+
+.dashboard-main {
+  width: calc(100% - 248px) !important;
+  max-width: 1440px;
+  margin: 0 auto !important;
+  padding: 32px !important;
+  background: #f7f7f7;
+}
+.dashboard-header h1,
+.fleet-header h1,
+.shipment-header h1,
+.driver-welcome h1,
+.admin-welcome h1 {
+  margin: 0;
+  font-size: 36px;
+  line-height: 44px;
+  letter-spacing: -0.02em;
+  font-weight: 700;
+}
+.dashboard-header p,
+.fleet-header p,
+.shipment-header p,
+.driver-welcome p,
+.admin-welcome p { color: #5e5e5e; }
+
+.dashboard-welcome {
+  border: 1px solid #e5e5e5;
+  border-radius: 16px !important;
+  background: #ffffff !important;
+  color: #0a0a0a !important;
+}
+.dashboard-welcome-btn,
+.dashboard-action-link,
+.link-accent { color: #533afd !important; }
+
+.dashboard-stat,
+.dashboard-action-card,
+.dashboard-profile,
+.fleet-stat-card,
+.shipment-stats-card,
+.admin-stat-card,
+.admin-vehicle-section,
+.admin-vehicle-card,
+.driver-stat,
+.driver-vehicle-card,
+.driver-shipment-card,
+.driver-form-card,
+.driver-list-card,
+.driver-assignments {
+  border: 1px solid #e5e5e5 !important;
+  border-radius: 16px !important;
+  background: #ffffff !important;
+  box-shadow: none !important;
+}
+
+.dashboard-stat h3,
+.fleet-stat-card h2,
+.admin-stat-card h2,
+.driver-stat h2 {
+  font-size: 32px;
+  line-height: 40px;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+}
+
+.fleet-header-actions button,
+.shipment-header-actions button,
+.admin-refresh,
+.admin-logout,
+.driver-refresh,
+.driver-logout {
+  height: 44px;
+  border-radius: 999px !important;
+  font-weight: 500;
+  border: 1px solid #e5e5e5 !important;
+  background: #ffffff !important;
+  color: #0a0a0a !important;
+  box-shadow: none !important;
+}
+.fleet-add-btn,
+.shipment-add-btn,
+.admin-approve,
+.driver-primary-btn {
+  background: #000000 !important;
+  color: #ffffff !important;
+  border-color: #000000 !important;
+  border-radius: 999px !important;
+  box-shadow: none !important;
+}
+.fleet-add-btn:hover,
+.shipment-add-btn:hover,
+.admin-approve:hover,
+.driver-primary-btn:hover { background: #282828 !important; }
+
+.admin-header,
+.driver-navbar {
+  border-bottom: 1px solid #e5e5e5 !important;
+  background: #ffffff !important;
+  color: #0a0a0a !important;
+}
+.admin-brand,
+.admin-brand div,
+.driver-brand,
+.driver-role { color: #0a0a0a !important; }
+.admin-content { width: min(1440px, calc(100% - 64px)) !important; }
+
+.admin-pending-badge,
+.shipment-status,
+.vehicle-status,
+.shipment-badge,
+.driver-status,
+.driver-account-status {
+  border-radius: 999px !important;
+  font-size: 12px !important;
+  font-weight: 500 !important;
+  text-transform: none !important;
+  font-variant-numeric: tabular-nums;
+}
+.admin-pending-badge.pending,
+.shipment-status.pending,
+.shipment-status.status-pending,
+.vehicle-status.pending { background: #fff4d6; color: #8a5a00; }
+.admin-pending-badge.verified,
+.shipment-status.delivered,
+.shipment-status.status-delivered,
+.vehicle-status.verified { background: #dcf5e4; color: #15803d; }
+.admin-pending-badge.rejected,
+.shipment-status.cancelled,
+.shipment-status.status-cancelled { background: #fde4e4; color: #b91c1c; }
+.shipment-status.booked,
+.shipment-status.status-booked,
+.shipment-badge.booked { background: #e3edff; color: #1d4ed8; }
+.shipment-status.in_transit,
+.shipment-status.status-in_transit,
+.shipment-badge.in_transit { background: #efe6ff; color: #6d28d9; }
+
+.admin-tabs {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 24px;
+}
+.admin-tab {
+  height: 40px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border: 0;
+  border-radius: 999px;
+  background: #efefef;
+  color: #5e5e5e;
+  padding: 8px 16px;
+  font-weight: 500;
+}
+.admin-tab.active { background: #000000; color: #ffffff; }
+
+.fleet-form-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: grid;
+  place-items: center;
+  background: rgba(0, 0, 0, 0.5);
+  padding: 16px;
+}
+.fleet-form-container,
+.shipment-form-container {
+  border: 1px solid #e5e5e5;
+  border-radius: 16px !important;
+  background: #ffffff;
+  box-shadow: 0_8px_24px rgba(10,20,60,0.08) !important;
+}
+
+html[data-theme="dark"] .dashboard-layout,
+html[data-theme="dark"] .dashboard-main {
+  background: #0b0b0e !important;
+  color: #f5f5f7 !important;
+}
+html[data-theme="dark"] .dashboard-sidebar,
+html[data-theme="dark"] .dashboard-welcome,
+html[data-theme="dark"] .dashboard-stat,
+html[data-theme="dark"] .dashboard-action-card,
+html[data-theme="dark"] .dashboard-profile {
+  border-color: #26262d !important;
+  background: #141418 !important;
+  color: #f5f5f7 !important;
+}
+html[data-theme="dark"] .dashboard-main p,
+html[data-theme="dark"] .dashboard-sidebar-user-info small {
+  color: #a1a1aa;
+}
+html[data-theme="dark"] .dashboard-nav a.active {
+  background: #1b1b21;
+  color: #7b6cff;
+}
+
+@media (max-width: 1023px) {
+  .dashboard-sidebar { width: 64px !important; padding: 16px 8px !important; }
+  .dashboard-main { width: calc(100% - 64px) !important; padding: 24px !important; }
+  .dashboard-brand span:last-child,
+  .dashboard-sidebar-label,
+  .dashboard-nav a,
+  .dashboard-sidebar-user-info { font-size: 0 !important; }
+  .dashboard-nav a { justify-content: center; padding: 8px; }
+  .dashboard-nav a svg { width: 20px; height: 20px; }
+}
+
+@media (max-width: 639px) {
+  .dashboard-layout { display: block !important; }
+  .dashboard-sidebar {
+    position: fixed;
+    z-index: 50;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    width: 100% !important;
+    min-height: 64px !important;
+    height: 64px;
+    border-top: 1px solid #e5e5e5;
+    border-right: 0;
+    padding: 8px !important;
+  }
+  .dashboard-brand,
+  .dashboard-sidebar-label,
+  .dashboard-sidebar-bottom { display: none !important; }
+  .dashboard-nav { display: grid !important; grid-template-columns: repeat(5, 1fr); }
+  .dashboard-nav a { width: 100%; height: 48px; margin: 0; }
+  .dashboard-main { width: 100% !important; padding: 20px 16px 84px !important; }
+  .dashboard-header h1,
+  .fleet-header h1,
+  .shipment-header h1,
+  .driver-welcome h1,
+  .admin-welcome h1 { font-size: 28px; line-height: 36px; }
+  .admin-content { width: calc(100% - 32px) !important; }
+  .admin-tabs { align-items: stretch; overflow-x: auto; }
+  .admin-tab { flex: 0 0 auto; }
+}
