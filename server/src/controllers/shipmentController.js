@@ -2,6 +2,8 @@
 const mongoose = require("mongoose");
 const Shipment = require("../models/Shipment");
 const Vehicle = require("../models/Vehicle");
+const Booking = require("../models/Booking");
+const Notification = require("../models/Notification");
 
 const createShipment = async (req, res) => {
     try {
@@ -25,6 +27,27 @@ const createShipment = async (req, res) => {
             return res.status(400).json({
                 success: false,
                 message: "Please provide all required shipment details"
+            });
+        }
+
+        const pickupPincode = String(pickupLocation.pincode || "").trim();
+        const deliveryPincode = String(deliveryLocation.pincode || "").trim();
+        if (!/^[0-9]{6}$/.test(pickupPincode) || !/^[0-9]{6}$/.test(deliveryPincode)) {
+            return res.status(400).json({
+                success: false,
+                message: "Pickup and delivery PIN codes must contain exactly 6 digits"
+            });
+        }
+        if (Number(weightKg) <= 0) {
+            return res.status(400).json({
+                success: false,
+                message: "Shipment weight must be greater than zero"
+            });
+        }
+        if (new Date(pickupDate).getTime() < Date.now()) {
+            return res.status(400).json({
+                success: false,
+                message: "Pickup date cannot be in the past"
             });
         }
 
@@ -54,15 +77,35 @@ const createShipment = async (req, res) => {
 
 const getMyShipments = async (req, res) => {
     try {
-        const shipments = await Shipment.find({
-            senderId: req.user.id
-        })
+        const page = Math.max(Number(req.query.page) || 1, 1);
+        const limit = Math.min(Math.max(Number(req.query.limit) || 20, 1), 100);
+        let filter = { senderId: req.user.id };
+        if (["individual_owner", "company_admin"].includes(req.user.role)) {
+            const vehicleIds = await Vehicle.find({ ownerId: req.user.id }).distinct("_id");
+            filter = {
+                $or: [
+                    { senderId: req.user.id },
+                    { bookedVehicleId: { $in: vehicleIds } }
+                ]
+            };
+        }
+        if (req.query.status) filter.status = req.query.status;
+
+        const [shipments, total] = await Promise.all([
+        Shipment.find(filter)
             .populate("bookedVehicleId", "vehicleNumber vehicleType make model")
-            .sort({ createdAt: -1 });
+            .sort({ createdAt: -1 })
+            .skip((page - 1) * limit)
+            .limit(limit),
+        Shipment.countDocuments(filter)
+        ]);
 
         return res.status(200).json({
             success: true,
             count: shipments.length,
+            total,
+            page,
+            pages: Math.ceil(total / limit),
             shipments
         });
     } catch (error) {
@@ -82,10 +125,12 @@ const getShipmentById = async (req, res) => {
             });
         }
 
-        const shipment = await Shipment.findOne({
-            _id: req.params.id,
-            senderId: req.user.id
-        }).populate(
+        let filter = { _id: req.params.id, senderId: req.user.id };
+        if (["individual_owner", "company_admin"].includes(req.user.role)) {
+            const vehicleIds = await Vehicle.find({ ownerId: req.user.id }).distinct("_id");
+            filter = { _id: req.params.id, $or: [{ senderId: req.user.id }, { bookedVehicleId: { $in: vehicleIds } }] };
+        }
+        const shipment = await Shipment.findOne(filter).populate(
             "bookedVehicleId",
             "vehicleNumber vehicleType make model"
         );
@@ -153,6 +198,16 @@ const updateShipment = async (req, res) => {
             }
         });
 
+        if (req.body.pickupLocation?.pincode && !/^[0-9]{6}$/.test(String(req.body.pickupLocation.pincode))) {
+            return res.status(400).json({ success: false, message: "Pickup PIN code must contain exactly 6 digits" });
+        }
+        if (req.body.deliveryLocation?.pincode && !/^[0-9]{6}$/.test(String(req.body.deliveryLocation.pincode))) {
+            return res.status(400).json({ success: false, message: "Delivery PIN code must contain exactly 6 digits" });
+        }
+        if (req.body.pickupDate && new Date(req.body.pickupDate).getTime() < Date.now()) {
+            return res.status(400).json({ success: false, message: "Pickup date cannot be in the past" });
+        }
+
         await shipment.save();
 
         return res.status(200).json({
@@ -169,6 +224,7 @@ const updateShipment = async (req, res) => {
 };
 
 const cancelShipment = async (req, res) => {
+    const session = await mongoose.startSession();
     try {
         if (!mongoose.isValidObjectId(req.params.id)) {
             return res.status(400).json({
@@ -177,38 +233,69 @@ const cancelShipment = async (req, res) => {
             });
         }
 
-        const shipment = await Shipment.findOne({
-            _id: req.params.id,
-            senderId: req.user.id
+        let cancelledShipment;
+        await session.withTransaction(async () => {
+            const shipment = await Shipment.findOne({
+                _id: req.params.id,
+                senderId: req.user.id
+            }).session(session);
+
+            if (!shipment) {
+                const error = new Error("Shipment not found");
+                error.statusCode = 404;
+                throw error;
+            }
+
+            if (!["pending", "matching", "matched", "booked"].includes(shipment.status)) {
+                const error = new Error("This shipment can no longer be cancelled");
+                error.statusCode = 400;
+                throw error;
+            }
+
+            if (shipment.bookedVehicleId) {
+                await Vehicle.findByIdAndUpdate(
+                    shipment.bookedVehicleId,
+                    [{
+                        $set: {
+                            availableCapacityKg: {
+                                $min: [
+                                    "$capacityKg",
+                                    {
+                                        $add: [
+                                            { $ifNull: ["$availableCapacityKg", "$capacityKg"] },
+                                            shipment.weightKg
+                                        ]
+                                    }
+                                ]
+                            }
+                        }
+                    }],
+                    { session, updatePipeline: true }
+                );
+            }
+
+            shipment.status = "cancelled";
+            await shipment.save({ session });
+            cancelledShipment = shipment;
+            await Booking.updateMany(
+                { shipmentId: shipment._id, status: { $nin: ["cancelled", "delivered"] } },
+                { $set: { status: "cancelled", cancelledAt: new Date() } },
+                { session }
+            );
         });
-
-        if (!shipment) {
-            return res.status(404).json({
-                success: false,
-                message: "Shipment not found"
-            });
-        }
-
-        if (shipment.status !== "pending") {
-            return res.status(400).json({
-                success: false,
-                message: "Only pending shipments can be cancelled"
-            });
-        }
-
-        shipment.status = "cancelled";
-        await shipment.save();
 
         return res.status(200).json({
             success: true,
             message: "Shipment cancelled successfully",
-            shipment
+            shipment: cancelledShipment
         });
     } catch (error) {
-        return res.status(500).json({
+        return res.status(error.statusCode || 500).json({
             success: false,
-            message: "Failed to cancel shipment"
+            message: error.message || "Failed to cancel shipment"
         });
+    } finally {
+        await session.endSession();
     }
 };
 
@@ -360,6 +447,14 @@ const updateShipmentStatus = async (req, res) => {
             "bookedVehicleId",
             "vehicleNumber vehicleType make model"
         );
+
+        await Notification.create({
+            userId: updatedShipment.senderId,
+            type: "shipment_status",
+            title: nextStatus === "delivered" ? "Shipment delivered" : "Shipment in transit",
+            message: `Shipment ${updatedShipment._id} is now ${nextStatus.replaceAll("_", " ")}.`,
+            link: `/tracking/${updatedShipment._id}`
+        });
 
         return res.status(200).json({
             success: true,

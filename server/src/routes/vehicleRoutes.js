@@ -5,6 +5,8 @@ const router = express.Router();
 const {
     addVehicle,
     getMyVehicles,
+    getPublicVehicles,
+    getPublicVehicleById,
     updateVehicle,
     deleteVehicle,
     assignDriver,
@@ -12,6 +14,9 @@ const {
 } = require("../controllers/vehicleController");
 
 const { protect } = require("../middleware/authMiddleware");
+
+router.get("/public", getPublicVehicles);
+router.get("/public/:id", getPublicVehicleById);
 
 router.use(protect);
 

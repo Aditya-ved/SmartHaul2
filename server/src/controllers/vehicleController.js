@@ -3,6 +3,8 @@ const Vehicle = require("../models/Vehicle");
 const User = require("../models/User");
 const mongoose = require("mongoose");
 
+const escapeRegex = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
 const checkOwnerPermission = (req, res) => {
     if (!["individual_owner", "company_admin"].includes(req.user.role)) {
         res.status(403).json({
@@ -221,6 +223,47 @@ const updateVehicle = async (req, res) => {
     }
 };
 
+const getPublicVehicles = async (req, res) => {
+    try {
+        const { pickupCity, deliveryCity, vehicleType, search, page = 1, limit = 12 } = req.query;
+        const filter = {
+            verificationStatus: "verified",
+            availability: "available",
+            status: "active"
+        };
+        if (pickupCity) filter.currentCity = new RegExp(`^${escapeRegex(pickupCity.trim())}$`, "i");
+        if (deliveryCity) filter.destinationCity = new RegExp(`^${escapeRegex(deliveryCity.trim())}$`, "i");
+        if (vehicleType) filter.vehicleType = vehicleType;
+        if (search) {
+            filter.$or = [
+                { vehicleNumber: new RegExp(escapeRegex(search.trim()), "i") },
+                { make: new RegExp(escapeRegex(search.trim()), "i") },
+                { model: new RegExp(escapeRegex(search.trim()), "i") }
+            ];
+        }
+        const numericLimit = Math.min(Number(limit) || 12, 50);
+        const numericPage = Math.max(Number(page) || 1, 1);
+        const [vehicles, total] = await Promise.all([
+            Vehicle.find(filter).populate("ownerId", "fullName").sort({ createdAt: -1 }).skip((numericPage - 1) * numericLimit).limit(numericLimit),
+            Vehicle.countDocuments(filter)
+        ]);
+        return res.status(200).json({ success: true, count: vehicles.length, total, page: numericPage, pages: Math.ceil(total / numericLimit), vehicles });
+    } catch (error) {
+        return res.status(500).json({ success: false, message: "Failed to fetch public vehicles" });
+    }
+};
+
+const getPublicVehicleById = async (req, res) => {
+    try {
+        if (!mongoose.isValidObjectId(req.params.id)) return res.status(400).json({ success: false, message: "Invalid vehicle ID" });
+        const vehicle = await Vehicle.findOne({ _id: req.params.id, verificationStatus: "verified" }).populate("ownerId", "fullName");
+        if (!vehicle) return res.status(404).json({ success: false, message: "Vehicle not found" });
+        return res.status(200).json({ success: true, vehicle });
+    } catch (error) {
+        return res.status(500).json({ success: false, message: "Failed to fetch vehicle" });
+    }
+};
+
 const deleteVehicle = async (req, res) => {
     try {
         if (!checkOwnerPermission(req, res)) return;
@@ -412,6 +455,8 @@ const removeDriver = async (req, res) => {
 module.exports = {
     addVehicle,
     getMyVehicles,
+    getPublicVehicles,
+    getPublicVehicleById,
     updateVehicle,
     deleteVehicle,
     assignDriver,

@@ -49,15 +49,37 @@ const findMatchingVehicles = async (req, res) => {
             ]
         }).populate("ownerId", "fullName phone");
 
-        const matchingVehicles = vehicles.filter((vehicle) => {
-            const vehiclePickup = vehicle.currentCity?.trim().toLowerCase();
-            const vehicleDestination = vehicle.destinationCity?.trim().toLowerCase();
+        const normalizeCity = (value) => value?.trim().toLowerCase().replace(/[^a-z0-9]/g, "");
+        const normalizedPickup = normalizeCity(pickupCity);
+        const normalizedDelivery = normalizeCity(deliveryCity);
 
-            return (
-                vehiclePickup === pickupCity &&
-                vehicleDestination === deliveryCity
-            );
-        });
+        const matchingVehicles = vehicles
+            .map((vehicle) => {
+                const vehiclePickup = normalizeCity(vehicle.currentCity);
+                const vehicleDestination = normalizeCity(vehicle.destinationCity);
+                const exactPickup = vehiclePickup === normalizedPickup;
+                const exactDestination = vehicleDestination === normalizedDelivery;
+                const pickupCompatible = exactPickup || vehiclePickup?.includes(normalizedPickup) || normalizedPickup?.includes(vehiclePickup);
+                const destinationCompatible = exactDestination || vehicleDestination?.includes(normalizedDelivery) || normalizedDelivery?.includes(vehicleDestination);
+
+                if (!pickupCompatible || !destinationCompatible) return null;
+
+                const routeScore = (exactPickup ? 50 : 25) + (exactDestination ? 50 : 25);
+                const availableCapacity = vehicle.availableCapacityKg || vehicle.capacityKg;
+                const capacityRatio = Math.min(100, (availableCapacity / shipment.weightKg) * 10);
+                return {
+                    vehicle,
+                    matchScore: Math.round(routeScore + capacityRatio),
+                    capacityFit: availableCapacity
+                };
+            })
+            .filter(Boolean)
+            .sort((first, second) => second.matchScore - first.matchScore)
+            .map(({ vehicle, matchScore, capacityFit }) => ({
+                ...vehicle.toObject(),
+                matchScore,
+                capacityFit
+            }));
 
         return res.status(200).json({
             success: true,

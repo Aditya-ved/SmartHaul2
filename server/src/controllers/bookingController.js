@@ -2,6 +2,8 @@
 const mongoose = require("mongoose");
 const Shipment = require("../models/Shipment");
 const Vehicle = require("../models/Vehicle");
+const Booking = require("../models/Booking");
+const Notification = require("../models/Notification");
 
 const escapeRegex = (value) => {
     return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -124,6 +126,41 @@ const bookTruck = async (req, res) => {
         }
 
         bookingCompleted = true;
+
+        const existingBooking = await Booking.findOne({
+            shipmentId: updatedShipment._id,
+            vehicleId: vehicle._id
+        });
+
+        if (!existingBooking) {
+            await Booking.create({
+                shipmentId: updatedShipment._id,
+                senderId: req.user.id,
+                vehicleId: vehicle._id,
+                ownerId: vehicle.ownerId,
+                status: "confirmed",
+                route: {
+                    pickupCity: pickupCity,
+                    deliveryCity: deliveryCity
+                },
+                weightKg: reservedWeight,
+                estimate: {
+                    distanceCharge: 8500,
+                    weightCharge: Math.round(Math.max(0, reservedWeight - 1000) * 0.625),
+                    serviceFee: 1000,
+                    total: 9500 + Math.round(Math.max(0, reservedWeight - 1000) * 0.625)
+                },
+                pickupDate: shipment.pickupDate
+            });
+
+            await Notification.create({
+                userId: req.user.id,
+                type: "booking_confirmed",
+                title: "Truck booked",
+                message: `Truck ${vehicle.vehicleNumber} was booked for your shipment.`,
+                link: `/tracking/${updatedShipment._id}`
+            });
+        }
 
         return res.status(200).json({
             success: true,

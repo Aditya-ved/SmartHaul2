@@ -32,7 +32,7 @@ function ProtectedRoute({ allowedRoles }) {
     }, []);
 
     if (loading) {
-        return <div className="auth-loading">Verifying account...</div>;
+        return <div className="auth-loading [min-height:100vh] [display:grid] [place-items:center] [color:#2878e5] [font-weight:700]">Verifying account...</div>;
     }
 
     if (!user) {

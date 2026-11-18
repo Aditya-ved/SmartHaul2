@@ -60,6 +60,7 @@ const shipmentSchema = new mongoose.Schema(
                 "matching",
                 "matched",
                 "booked",
+                "picked_up",
                 "in_transit",
                 "delivered",
                 "cancelled"
@@ -76,6 +77,15 @@ const shipmentSchema = new mongoose.Schema(
         bookedAt: {
             type: Date,
             default: null
+        },
+        tracking: {
+            currentLocation: {
+                address: { type: String, trim: true, default: "" },
+                latitude: { type: Number, default: null },
+                longitude: { type: Number, default: null },
+                updatedAt: { type: Date, default: null }
+            },
+            estimatedArrival: { type: Date, default: null }
         }
     },
     {

@@ -1,10 +1,13 @@
 
 const mongoose = require("mongoose");
 const Vehicle = require("../models/Vehicle");
+const Notification = require("../models/Notification");
 
 const getVehiclesByVerificationStatus = async (req, res) => {
     try {
         const { status } = req.params;
+        const page = Math.max(Number(req.query.page) || 1, 1);
+        const limit = Math.min(Math.max(Number(req.query.limit) || 20, 1), 100);
 
         if (!["pending", "verified", "rejected"].includes(status)) {
             return res.status(400).json({
@@ -13,16 +16,25 @@ const getVehiclesByVerificationStatus = async (req, res) => {
             });
         }
 
-        const vehicles = await Vehicle.find({
+        const filter = {
             verificationStatus: status
-        })
+        };
+        const [vehicles, total] = await Promise.all([
+        Vehicle.find(filter)
             .populate("ownerId", "fullName email phone")
             .populate("assignedDriver", "fullName phone")
-            .sort({ createdAt: -1 });
+            .sort({ createdAt: -1 })
+            .skip((page - 1) * limit)
+            .limit(limit),
+        Vehicle.countDocuments(filter)
+        ]);
 
         return res.status(200).json({
             success: true,
             count: vehicles.length,
+            total,
+            page,
+            pages: Math.ceil(total / limit),
             vehicles
         });
     } catch (error) {
@@ -77,6 +89,13 @@ const updateVehicleVerification = async (req, res) => {
 
         vehicle.verificationStatus = verificationStatus;
         await vehicle.save();
+        await Notification.create({
+            userId: vehicle.ownerId,
+            type: "vehicle_verification",
+            title: `Vehicle ${verificationStatus}`,
+            message: `Vehicle ${vehicle.vehicleNumber} was ${verificationStatus}.`,
+            link: "/fleet"
+        });
 
         return res.status(200).json({
             success: true,

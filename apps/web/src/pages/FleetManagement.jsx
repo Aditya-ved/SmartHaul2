@@ -1,569 +1,120 @@
-import "./FleetManagement.css";
 import { useEffect, useState } from "react";
-import {
-    Truck,
-    RefreshCw,
-    Plus,
-    X,
-    Pencil,
-    Users,
-    Phone,
-    UserRoundCheck
-} from "lucide-react";
+import { Package, Plus, RefreshCw, X } from "lucide-react";
 import api from "../services/api";
+import DashboardShell from "../components/DashboardShell";
+import { Alert } from "../components/ui/alert";
+import { Badge } from "../components/ui/badge";
+import { Button } from "../components/ui/button";
+import { Card } from "../components/ui/card";
+import { Input } from "../components/ui/input";
+import { Label } from "../components/ui/label";
+import ConfirmDialog from "../components/ConfirmDialog";
 
-const initialFormData = {
-    vehicleNumber: "",
-    vehicleType: "mini_truck",
-    make: "",
-    model: "",
-    manufacturingYear: "",
-    capacityKg: "",
-    availableCapacityKg: "",
-    currentCity: "",
-    destinationCity: "",
-    registrationExpiry: "",
-    insuranceExpiry: "",
-    description: ""
-};
+const empty = { vehicleNumber: "", vehicleType: "mini_truck", make: "", model: "", manufacturingYear: "", capacityKg: "", availableCapacityKg: "", currentCity: "", destinationCity: "", description: "" };
 
 function FleetManagement() {
     const [vehicles, setVehicles] = useState([]);
+    const [user, setUser] = useState(null);
     const [loading, setLoading] = useState(true);
+    const [saving, setSaving] = useState(false);
     const [error, setError] = useState("");
     const [success, setSuccess] = useState("");
+    const [open, setOpen] = useState(false);
+    const [editing, setEditing] = useState(null);
+    const [form, setForm] = useState(empty);
+    const [deleteTarget, setDeleteTarget] = useState(null);
 
-    const [showForm, setShowForm] = useState(false);
-    const [saving, setSaving] = useState(false);
-    const [editingVehicle, setEditingVehicle] = useState(null);
-    const [formData, setFormData] = useState(initialFormData);
-
-    const fetchVehicles = async () => {
+    const load = async () => {
+        setLoading(true);
+        setError("");
         try {
-            setLoading(true);
-            setError("");
-
-            const response = await api.get("/vehicles");
-            setVehicles(response.data.vehicles || []);
-        } catch (error) {
-            setError(
-                error.response?.data?.message ||
-                "Unable to load vehicles"
-            );
+            const [profile, fleet] = await Promise.all([api.get("/auth/me"), api.get("/vehicles")]);
+            setUser(profile.data.user);
+            setVehicles(fleet.data.vehicles || []);
+        } catch (err) {
+            setError(err.response?.data?.message || "Unable to load fleet.");
         } finally {
             setLoading(false);
         }
     };
 
     useEffect(() => {
-        fetchVehicles();
+        // eslint-disable-next-line react-hooks/set-state-in-effect
+        load();
     }, []);
 
-    const resetForm = () => {
-        setFormData({ ...initialFormData });
-        setEditingVehicle(null);
-        setShowForm(false);
-    };
+    const change = (event) => setForm({ ...form, [event.target.name]: event.target.value });
 
-    const handleChange = (e) => {
-        const { name, value } = e.target;
-
-        setFormData((previous) => ({
-            ...previous,
-            [name]: value
-        }));
-    };
-
-    const handleAddVehicle = () => {
-        resetForm();
+    const submit = async (event) => {
+        event.preventDefault();
+        setSaving(true);
         setError("");
         setSuccess("");
-        setShowForm(true);
+        try {
+            const payload = {
+                ...form,
+                vehicleNumber: form.vehicleNumber.trim().toUpperCase(),
+                manufacturingYear: form.manufacturingYear ? Number(form.manufacturingYear) : undefined,
+                capacityKg: Number(form.capacityKg),
+                availableCapacityKg: form.availableCapacityKg === "" ? Number(form.capacityKg) : Number(form.availableCapacityKg)
+            };
+            if (editing) await api.put(`/vehicles/${editing._id}`, payload);
+            else await api.post("/vehicles", payload);
+            setSuccess(editing ? "Vehicle updated." : "Vehicle registered.");
+            setOpen(false);
+            setEditing(null);
+            setForm(empty);
+            await load();
+        } catch (err) {
+            setError(err.response?.data?.message || "Unable to save vehicle.");
+        } finally {
+            setSaving(false);
+        }
     };
 
-    const handleEditVehicle = (vehicle) => {
-        setEditingVehicle(vehicle);
-
-        setFormData({
+    const edit = (vehicle) => {
+        setEditing(vehicle);
+        setForm({
             vehicleNumber: vehicle.vehicleNumber || "",
             vehicleType: vehicle.vehicleType || "mini_truck",
             make: vehicle.make || "",
             model: vehicle.model || "",
             manufacturingYear: vehicle.manufacturingYear || "",
             capacityKg: vehicle.capacityKg || "",
-            availableCapacityKg:
-                vehicle.availableCapacityKg ?? vehicle.capacityKg ?? "",
+            availableCapacityKg: vehicle.availableCapacityKg ?? vehicle.capacityKg ?? "",
             currentCity: vehicle.currentCity || "",
             destinationCity: vehicle.destinationCity || "",
-            registrationExpiry: vehicle.registrationExpiry
-                ? vehicle.registrationExpiry.substring(0, 10)
-                : "",
-            insuranceExpiry: vehicle.insuranceExpiry
-                ? vehicle.insuranceExpiry.substring(0, 10)
-                : "",
             description: vehicle.description || ""
         });
-
-        setError("");
-        setSuccess("");
-        setShowForm(true);
+        setOpen(true);
     };
 
-    const handleSubmit = async (e) => {
-        e.preventDefault();
+    const remove = async (vehicleId) => {
+        setDeleteTarget(vehicleId);
+    };
 
+    const confirmDelete = async () => {
+        if (!deleteTarget) return;
         try {
-            setSaving(true);
-            setError("");
-            setSuccess("");
-
-            const totalCapacity = Number(formData.capacityKg);
-
-            const availableCapacity =
-                formData.availableCapacityKg === ""
-                    ? totalCapacity
-                    : Number(formData.availableCapacityKg);
-
-            if (
-                availableCapacity < 0 ||
-                availableCapacity > totalCapacity
-            ) {
-                setError(
-                    "Available capacity must be between 0 and total capacity."
-                );
-                setSaving(false);
-                return;
-            }
-
-            const vehicleData = {
-                ...formData,
-                vehicleNumber: formData.vehicleNumber.trim().toUpperCase(),
-                capacityKg: totalCapacity,
-                availableCapacityKg: availableCapacity,
-                currentCity: formData.currentCity.trim(),
-                destinationCity: formData.destinationCity.trim()
-            };
-
-            if (formData.manufacturingYear) {
-                vehicleData.manufacturingYear = Number(
-                    formData.manufacturingYear
-                );
-            } else {
-                delete vehicleData.manufacturingYear;
-            }
-
-            if (!vehicleData.registrationExpiry) {
-                delete vehicleData.registrationExpiry;
-            }
-
-            if (!vehicleData.insuranceExpiry) {
-                delete vehicleData.insuranceExpiry;
-            }
-
-            if (editingVehicle) {
-                await api.put(
-                    `/vehicles/${editingVehicle._id}`,
-                    vehicleData
-                );
-
-                setSuccess("Vehicle updated successfully!");
-            } else {
-                await api.post("/vehicles", vehicleData);
-
-                setSuccess("Vehicle registered successfully!");
-            }
-
-            resetForm();
-            await fetchVehicles();
-        } catch (error) {
-            setError(
-                error.response?.data?.message ||
-                "Failed to save vehicle"
-            );
+            await api.delete(`/vehicles/${deleteTarget}`);
+            await load();
+            setSuccess("Vehicle deleted.");
+        } catch (err) {
+            setError(err.response?.data?.message || "Unable to delete vehicle.");
         } finally {
-            setSaving(false);
+            setDeleteTarget(null);
         }
     };
 
     return (
-        <div className="fleet-page">
-
-            <div className="fleet-header">
-                <div>
-                    <h1>Fleet Management</h1>
-                    <p>Manage and monitor your registered vehicles.</p>
-                </div>
-
-                <div className="fleet-header-actions">
-                    <button
-                        className="fleet-refresh-btn"
-                        onClick={fetchVehicles}
-                        disabled={loading}
-                    >
-                        <RefreshCw size={17} />
-                        Refresh
-                    </button>
-
-                    <button
-                        className="fleet-add-btn"
-                        onClick={handleAddVehicle}
-                    >
-                        <Plus size={18} />
-                        Add Vehicle
-                    </button>
-                </div>
-            </div>
-
-            {success && (
-                <div className="fleet-success">
-                    {success}
-                </div>
-            )}
-
-            {error && (
-                <div className="fleet-error">
-                    {error}
-                </div>
-            )}
-
-            <div className="fleet-stats">
-                <div className="fleet-stat-card">
-                    <span>Total Vehicles</span>
-                    <h2>{vehicles.length}</h2>
-                </div>
-
-                <div className="fleet-stat-card">
-                    <span>Available Vehicles</span>
-                    <h2>
-                        {vehicles.filter(
-                            (vehicle) => vehicle.availability === "available"
-                        ).length}
-                    </h2>
-                </div>
-
-                <div className="fleet-stat-card">
-                    <span>On Trip</span>
-                    <h2>
-                        {vehicles.filter(
-                            (vehicle) => vehicle.availability === "on_trip"
-                        ).length}
-                    </h2>
-                </div>
-            </div>
-
-            {showForm && (
-                <div className="fleet-form-overlay">
-                    <div className="fleet-form-container">
-
-                        <div className="fleet-form-header">
-                            <div>
-                                <h2>
-                                    {editingVehicle
-                                        ? "Edit Vehicle"
-                                        : "Register New Vehicle"}
-                                </h2>
-                                <p>Enter your vehicle details below.</p>
-                            </div>
-
-                            <button
-                                type="button"
-                                className="fleet-close-btn"
-                                onClick={resetForm}
-                                disabled={saving}
-                            >
-                                <X size={22} />
-                            </button>
-                        </div>
-
-                        <form onSubmit={handleSubmit}>
-                            <div className="fleet-form-grid">
-
-                                <div className="fleet-form-group">
-                                    <label>Vehicle Registration Number *</label>
-                                    <input
-                                        type="text"
-                                        name="vehicleNumber"
-                                        placeholder="RJ14AB1234"
-                                        value={formData.vehicleNumber}
-                                        onChange={handleChange}
-                                        required
-                                    />
-                                </div>
-
-                                <div className="fleet-form-group">
-                                    <label>Vehicle Type *</label>
-                                    <select
-                                        name="vehicleType"
-                                        value={formData.vehicleType}
-                                        onChange={handleChange}
-                                        required
-                                    >
-                                        <option value="mini_truck">Mini Truck</option>
-                                        <option value="pickup">Pickup</option>
-                                        <option value="light_truck">Light Truck</option>
-                                        <option value="heavy_truck">Heavy Truck</option>
-                                        <option value="container_truck">Container Truck</option>
-                                        <option value="trailer">Trailer</option>
-                                        <option value="other">Other</option>
-                                    </select>
-                                </div>
-
-                                <div className="fleet-form-group">
-                                    <label>Manufacturer</label>
-                                    <input
-                                        type="text"
-                                        name="make"
-                                        placeholder="Tata"
-                                        value={formData.make}
-                                        onChange={handleChange}
-                                    />
-                                </div>
-
-                                <div className="fleet-form-group">
-                                    <label>Model</label>
-                                    <input
-                                        type="text"
-                                        name="model"
-                                        placeholder="Ace Gold"
-                                        value={formData.model}
-                                        onChange={handleChange}
-                                    />
-                                </div>
-
-                                <div className="fleet-form-group">
-                                    <label>Manufacturing Year</label>
-                                    <input
-                                        type="number"
-                                        name="manufacturingYear"
-                                        min="1980"
-                                        max="2100"
-                                        placeholder="2022"
-                                        value={formData.manufacturingYear}
-                                        onChange={handleChange}
-                                    />
-                                </div>
-
-                                <div className="fleet-form-group">
-                                    <label>Total Capacity (kg) *</label>
-                                    <input
-                                        type="number"
-                                        name="capacityKg"
-                                        min="1"
-                                        placeholder="10000"
-                                        value={formData.capacityKg}
-                                        onChange={handleChange}
-                                        required
-                                    />
-                                </div>
-
-                                <div className="fleet-form-group">
-                                    <label>Available Capacity (kg) *</label>
-                                    <input
-                                        type="number"
-                                        name="availableCapacityKg"
-                                        min="0"
-                                        max={formData.capacityKg || undefined}
-                                        placeholder="3000"
-                                        value={formData.availableCapacityKg}
-                                        onChange={handleChange}
-                                        required
-                                    />
-                                    <small>
-                                        Remaining capacity available for new shipments.
-                                    </small>
-                                </div>
-
-                                <div className="fleet-form-group">
-                                    <label>Current City *</label>
-                                    <input
-                                        type="text"
-                                        name="currentCity"
-                                        placeholder="Ahmedabad"
-                                        value={formData.currentCity}
-                                        onChange={handleChange}
-                                        required
-                                    />
-                                </div>
-
-                                <div className="fleet-form-group">
-                                    <label>Destination City *</label>
-                                    <input
-                                        type="text"
-                                        name="destinationCity"
-                                        placeholder="Delhi"
-                                        value={formData.destinationCity}
-                                        onChange={handleChange}
-                                        required
-                                    />
-                                </div>
-
-                                <div className="fleet-form-group">
-                                    <label>Registration Expiry</label>
-                                    <input
-                                        type="date"
-                                        name="registrationExpiry"
-                                        value={formData.registrationExpiry}
-                                        onChange={handleChange}
-                                    />
-                                </div>
-
-                                <div className="fleet-form-group">
-                                    <label>Insurance Expiry</label>
-                                    <input
-                                        type="date"
-                                        name="insuranceExpiry"
-                                        value={formData.insuranceExpiry}
-                                        onChange={handleChange}
-                                    />
-                                </div>
-
-                                <div className="fleet-form-group full-width">
-                                    <label>Description</label>
-                                    <textarea
-                                        name="description"
-                                        placeholder="Enter additional vehicle information..."
-                                        value={formData.description}
-                                        onChange={handleChange}
-                                        rows="3"
-                                    />
-                                </div>
-
-                            </div>
-
-                            <div className="fleet-form-actions">
-                                <button
-                                    type="button"
-                                    className="fleet-cancel-btn"
-                                    onClick={resetForm}
-                                    disabled={saving}
-                                >
-                                    Cancel
-                                </button>
-
-                                <button
-                                    type="submit"
-                                    className="fleet-submit-btn"
-                                    disabled={saving}
-                                >
-                                    {saving
-                                        ? "Saving..."
-                                        : editingVehicle
-                                            ? "Update Vehicle"
-                                            : "Register Vehicle"}
-                                </button>
-                            </div>
-                        </form>
-                    </div>
-                </div>
-            )}
-
-            <div className="fleet-vehicles-section">
-                <h2>My Vehicles</h2>
-
-                {loading ? (
-                    <p>Loading vehicles...</p>
-                ) : vehicles.length === 0 ? (
-                    <div className="fleet-empty">
-                        <Truck size={45} />
-                        <h3>No vehicles registered</h3>
-                        <p>Your registered vehicles will appear here.</p>
-                    </div>
-                ) : (
-                    <div className="fleet-vehicles-grid">
-
-                        {vehicles.map((vehicle) => {
-                            const driver = vehicle.assignedDriver;
-
-                            return (
-                                <div
-                                    className="fleet-vehicle-card"
-                                    key={vehicle._id}
-                                >
-                                    <div className="fleet-vehicle-icon">
-                                        <Truck size={28} />
-                                    </div>
-
-                                    <h3>{vehicle.vehicleNumber}</h3>
-
-                                    <p>
-                                        {vehicle.make || "Unknown Make"}{" "}
-                                        {vehicle.model || ""}
-                                    </p>
-
-                                    <div className="fleet-vehicle-details">
-                                        <span>Type</span>
-                                        <strong>{vehicle.vehicleType}</strong>
-
-                                        <span>Total Capacity</span>
-                                        <strong>{vehicle.capacityKg} kg</strong>
-
-                                        <span>Available Capacity</span>
-                                        <strong>
-                                            {vehicle.availableCapacityKg ??
-                                                vehicle.capacityKg} kg
-                                        </strong>
-
-                                        <span>Route</span>
-                                        <strong>
-                                            {vehicle.currentCity || "Not set"}
-                                            {" → "}
-                                            {vehicle.destinationCity || "Not set"}
-                                        </strong>
-
-                                        <span>Availability</span>
-                                        <strong>{vehicle.availability}</strong>
-
-                                        <span>Verification</span>
-                                        <strong>{vehicle.verificationStatus}</strong>
-                                    </div>
-
-                                    <div className="fleet-assigned-driver">
-                                        <div className="fleet-driver-heading">
-                                            <Users size={19} />
-                                            <strong>Assigned Driver</strong>
-                                        </div>
-
-                                        {driver && typeof driver === "object" ? (
-                                            <div className="fleet-driver-info">
-                                                <div className="fleet-driver-avatar">
-                                                    <UserRoundCheck size={22} />
-                                                </div>
-
-                                                <div>
-                                                    <strong>{driver.fullName}</strong>
-                                                    <span>
-                                                        <Phone size={13} />
-                                                        {driver.phone || "Phone not provided"}
-                                                    </span>
-                                                </div>
-
-                                                <span className="fleet-driver-status">
-                                                    Assigned
-                                                </span>
-                                            </div>
-                                        ) : (
-                                            <div className="fleet-no-driver">
-                                                No driver assigned
-                                            </div>
-                                        )}
-                                    </div>
-
-                                    <button
-                                        type="button"
-                                        className="fleet-edit-btn"
-                                        onClick={() => handleEditVehicle(vehicle)}
-                                    >
-                                        <Pencil size={16} />
-                                        Edit Vehicle
-                                    </button>
-                                </div>
-                            );
-                        })}
-
-                    </div>
-                )}
-            </div>
-        </div>
+        <DashboardShell user={user} title="Fleet management" subtitle="Manage vehicles and capacity">
+            <div className="mb-6 flex items-end justify-between gap-4"><div><p className="text-xs text-[#533afd]">Fleet</p><h1 className="mt-2 text-[36px] font-bold leading-[44px]">My vehicles</h1></div><div className="flex gap-2"><Button variant="secondary" size="icon" onClick={load} aria-label="Refresh"><RefreshCw size={17} /></Button><Button onClick={() => { setEditing(null); setForm(empty); setOpen(true); }}><Plus size={17} />Add vehicle</Button></div></div>
+            {error && <Alert variant="destructive" className="mb-5">{error}</Alert>}
+            {success && <Alert variant="success" className="mb-5">{success}</Alert>}
+            {open && <Card className="mb-6 p-5"><div className="mb-5 flex items-start justify-between"><div><h2 className="text-[22px] font-semibold">{editing ? "Edit vehicle" : "Register vehicle"}</h2><p className="mt-1 text-sm text-[#5e5e5e]">Enter capacity and route information.</p></div><button onClick={() => setOpen(false)} className="flex h-10 w-10 items-center justify-center rounded-full bg-[#efefef]" aria-label="Close"><X size={18} /></button></div><form onSubmit={submit} className="grid gap-4 sm:grid-cols-2"><div className="space-y-2"><Label>Vehicle number</Label><Input name="vehicleNumber" value={form.vehicleNumber} onChange={change} placeholder="GJ 01 AB 1234" required /></div><div className="space-y-2"><Label>Vehicle type</Label><select name="vehicleType" value={form.vehicleType} onChange={change}><option value="mini_truck">Mini truck</option><option value="pickup">Pickup</option><option value="light_truck">Light truck</option><option value="heavy_truck">Heavy truck</option><option value="container_truck">Container truck</option><option value="trailer">Trailer</option><option value="other">Other</option></select></div><div className="space-y-2"><Label>Make</Label><Input name="make" value={form.make} onChange={change} /></div><div className="space-y-2"><Label>Model</Label><Input name="model" value={form.model} onChange={change} /></div><div className="space-y-2"><Label>Total capacity (kg)</Label><Input name="capacityKg" type="number" min="1" value={form.capacityKg} onChange={change} required /></div><div className="space-y-2"><Label>Available capacity (kg)</Label><Input name="availableCapacityKg" type="number" min="0" value={form.availableCapacityKg} onChange={change} /></div><div className="space-y-2"><Label>Current city</Label><Input name="currentCity" value={form.currentCity} onChange={change} /></div><div className="space-y-2"><Label>Destination city</Label><Input name="destinationCity" value={form.destinationCity} onChange={change} /></div><div className="sm:col-span-2"><Label>Description</Label><textarea name="description" value={form.description} onChange={change} /></div><div className="sm:col-span-2 flex gap-3"><Button type="submit" disabled={saving}>{saving ? "Saving..." : editing ? "Save changes" : "Register vehicle"}</Button><Button type="button" variant="secondary" onClick={() => setOpen(false)}>Cancel</Button></div></form></Card>}
+            {loading ? <Card className="p-10 text-center text-sm text-[#5e5e5e]">Loading fleet...</Card> : vehicles.length === 0 ? <Card className="p-10 text-center"><Package className="mx-auto text-[#9a9a9a]" /><h2 className="mt-3 font-semibold">No vehicles registered</h2><p className="mt-2 text-sm text-[#5e5e5e]">Register your first vehicle to start receiving bookings.</p></Card> : <div className="grid gap-4 md:grid-cols-2">{vehicles.map((vehicle) => <Card key={vehicle._id} className="p-5"><div className="flex items-start justify-between"><span className="flex h-12 w-12 items-center justify-center rounded-full bg-[#efefef]"><Package size={21} /></span><Badge variant={vehicle.verificationStatus === "verified" ? "delivered" : vehicle.verificationStatus === "rejected" ? "rejected" : "pending"}>{vehicle.verificationStatus}</Badge></div><h2 className="mt-5 font-mono text-lg">{vehicle.vehicleNumber}</h2><p className="mt-1 text-sm text-[#5e5e5e]">{vehicle.vehicleType?.replaceAll("_", " ")} · {[vehicle.make, vehicle.model].filter(Boolean).join(" ")}</p><div className="mt-5 grid grid-cols-2 gap-3 border-t border-[#e5e5e5] pt-4 text-sm"><div><p className="text-xs text-[#9a9a9a]">Total capacity</p><p className="mt-1 font-medium tabular-nums">{Number(vehicle.capacityKg || 0).toLocaleString("en-IN")} kg</p></div><div><p className="text-xs text-[#9a9a9a]">Available</p><p className="mt-1 font-medium tabular-nums">{Number(vehicle.availableCapacityKg ?? vehicle.capacityKg ?? 0).toLocaleString("en-IN")} kg</p></div></div><p className="mt-4 text-sm text-[#5e5e5e]">{vehicle.currentCity || "Not set"} → {vehicle.destinationCity || "Not set"}</p><div className="mt-5 flex gap-2"><Button variant="secondary" onClick={() => edit(vehicle)}>Edit</Button><Button variant="destructive" onClick={() => remove(vehicle._id)}>Delete</Button></div></Card>)}</div>}
+            <ConfirmDialog open={Boolean(deleteTarget)} onOpenChange={(open) => !open && setDeleteTarget(null)} title="Delete this vehicle?" description="This removes the vehicle and may affect existing assignments." confirmLabel="Delete vehicle" destructive onConfirm={confirmDelete} />
+        </DashboardShell>
     );
 }
 

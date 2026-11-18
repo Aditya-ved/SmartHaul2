@@ -1,890 +1,181 @@
-
 import { useEffect, useState } from "react";
-import {
-    Package,
-    Plus,
-    RefreshCw,
-    X,
-    MapPin,
-    CalendarDays,
-    Weight,
-    Pencil,
-    Ban,
-    ArrowRight,
-    Truck,
-    CheckCircle
-} from "lucide-react";
+import { Package, Plus, RefreshCw, Search, X } from "lucide-react";
 import api from "../services/api";
+import DashboardShell from "../components/DashboardShell";
+import { Alert } from "../components/ui/alert";
+import { Badge } from "../components/ui/badge";
+import { Button } from "../components/ui/button";
+import { Card } from "../components/ui/card";
+import { Input } from "../components/ui/input";
+import { Label } from "../components/ui/label";
+import ConfirmDialog from "../components/ConfirmDialog";
 
-const initialForm = {
-    pickupAddress: "",
-    pickupCity: "",
-    pickupState: "",
-    pickupPincode: "",
-    deliveryAddress: "",
-    deliveryCity: "",
-    deliveryState: "",
-    deliveryPincode: "",
-    goodsType: "",
-    weightKg: "",
-    lengthCm: "",
-    widthCm: "",
-    heightCm: "",
-    description: "",
-    pickupDate: ""
-};
-
-const statusLabels = {
-    pending: "Pending",
-    matching: "Finding a truck",
-    matched: "Matched",
-    booked: "Booked",
-    in_transit: "In Transit",
-    delivered: "Delivered",
-    cancelled: "Cancelled"
+const empty = {
+    pickupAddress: "", pickupCity: "", pickupState: "", pickupPincode: "",
+    deliveryAddress: "", deliveryCity: "", deliveryState: "", deliveryPincode: "",
+    goodsType: "", weightKg: "", lengthCm: "", widthCm: "", heightCm: "", description: "", pickupDate: ""
 };
 
 function ShipmentManagement() {
+    const [user, setUser] = useState(null);
     const [shipments, setShipments] = useState([]);
+    const [form, setForm] = useState(empty);
+    const [open, setOpen] = useState(false);
+    const [editing, setEditing] = useState(null);
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
-    const [showForm, setShowForm] = useState(false);
-    const [editingShipment, setEditingShipment] = useState(null);
-    const [formData, setFormData] = useState(initialForm);
     const [error, setError] = useState("");
     const [success, setSuccess] = useState("");
+    const [matches, setMatches] = useState({});
+    const [matching, setMatching] = useState("");
+    const [booking, setBooking] = useState("");
+    const [confirmation, setConfirmation] = useState(null);
 
-    const [matchingLoading, setMatchingLoading] = useState({});
-    const [matchingResults, setMatchingResults] = useState({});
-    const [matchingErrors, setMatchingErrors] = useState({});
-    const [bookingLoading, setBookingLoading] = useState({});
-    const [bookingErrors, setBookingErrors] = useState({});
-
-    const fetchShipments = async () => {
+    const load = async () => {
+        setLoading(true);
+        setError("");
         try {
-            setLoading(true);
-            setError("");
-
-            const response = await api.get("/shipments");
-            setShipments(response.data.shipments || []);
+            const [profile, result] = await Promise.all([api.get("/auth/me"), api.get("/shipments")]);
+            setUser(profile.data.user);
+            setShipments(result.data.shipments || []);
         } catch (err) {
-            setError(
-                err.response?.data?.message ||
-                "Unable to load your shipments."
-            );
+            setError(err.response?.data?.message || "Unable to load shipments.");
         } finally {
             setLoading(false);
         }
     };
 
     useEffect(() => {
-        fetchShipments();
+        // eslint-disable-next-line react-hooks/set-state-in-effect
+        load();
     }, []);
 
-    const resetForm = () => {
-        setFormData({ ...initialForm });
-        setEditingShipment(null);
-        setShowForm(false);
-    };
+    const change = (event) => setForm({ ...form, [event.target.name]: event.target.value });
 
-    const handleChange = (event) => {
-        const { name, value } = event.target;
-
-        setFormData((previous) => ({
-            ...previous,
-            [name]: value
-        }));
-    };
-
-    const openAddForm = () => {
-        resetForm();
-        setError("");
-        setSuccess("");
-        setShowForm(true);
-    };
-
-    const openEditForm = (shipment) => {
-        setEditingShipment(shipment);
-
-        setFormData({
-            pickupAddress: shipment.pickupLocation?.address || "",
-            pickupCity: shipment.pickupLocation?.city || "",
-            pickupState: shipment.pickupLocation?.state || "",
-            pickupPincode: shipment.pickupLocation?.pincode || "",
-            deliveryAddress: shipment.deliveryLocation?.address || "",
-            deliveryCity: shipment.deliveryLocation?.city || "",
-            deliveryState: shipment.deliveryLocation?.state || "",
-            deliveryPincode: shipment.deliveryLocation?.pincode || "",
-            goodsType: shipment.goodsType || "",
-            weightKg: shipment.weightKg || "",
-            lengthCm: shipment.dimensions?.lengthCm || "",
-            widthCm: shipment.dimensions?.widthCm || "",
-            heightCm: shipment.dimensions?.heightCm || "",
-            description: shipment.description || "",
-            pickupDate: shipment.pickupDate
-                ? new Date(shipment.pickupDate).toISOString().slice(0, 10)
-                : ""
-        });
-
-        setError("");
-        setSuccess("");
-        setShowForm(true);
-    };
-
-    const handleSubmit = async (event) => {
+    const submit = async (event) => {
         event.preventDefault();
-
+        setSaving(true);
+        setError("");
+        setSuccess("");
         try {
-            setSaving(true);
-            setError("");
-            setSuccess("");
-
-            const shipmentData = {
-                pickupLocation: {
-                    address: formData.pickupAddress.trim(),
-                    city: formData.pickupCity.trim(),
-                    state: formData.pickupState.trim(),
-                    pincode: formData.pickupPincode.trim()
-                },
-                deliveryLocation: {
-                    address: formData.deliveryAddress.trim(),
-                    city: formData.deliveryCity.trim(),
-                    state: formData.deliveryState.trim(),
-                    pincode: formData.deliveryPincode.trim()
-                },
-                goodsType: formData.goodsType.trim(),
-                weightKg: Number(formData.weightKg),
-                dimensions: {
-                    lengthCm: Number(formData.lengthCm) || 0,
-                    widthCm: Number(formData.widthCm) || 0,
-                    heightCm: Number(formData.heightCm) || 0
-                },
-                description: formData.description.trim(),
-                pickupDate: new Date(
-                    `${formData.pickupDate}T10:00:00`
-                ).toISOString()
+            const payload = {
+                pickupLocation: { address: form.pickupAddress.trim(), city: form.pickupCity.trim(), state: form.pickupState.trim(), pincode: form.pickupPincode.trim() },
+                deliveryLocation: { address: form.deliveryAddress.trim(), city: form.deliveryCity.trim(), state: form.deliveryState.trim(), pincode: form.deliveryPincode.trim() },
+                goodsType: form.goodsType.trim(),
+                weightKg: Number(form.weightKg),
+                dimensions: { lengthCm: Number(form.lengthCm) || 0, widthCm: Number(form.widthCm) || 0, heightCm: Number(form.heightCm) || 0 },
+                description: form.description.trim(),
+                pickupDate: new Date(`${form.pickupDate}T10:00:00`).toISOString()
             };
-
-            if (editingShipment) {
-                await api.put(
-                    `/shipments/${editingShipment._id}`,
-                    shipmentData
-                );
-                setSuccess("Shipment updated successfully!");
-            } else {
-                await api.post("/shipments", shipmentData);
-                setSuccess("Shipment created successfully!");
-            }
-
-            resetForm();
-            await fetchShipments();
+            if (editing) await api.put(`/shipments/${editing._id}`, payload);
+            else await api.post("/shipments", payload);
+            setSuccess(editing ? "Shipment updated." : "Shipment created.");
+            setOpen(false);
+            setEditing(null);
+            setForm(empty);
+            await load();
         } catch (err) {
-            setError(
-                err.response?.data?.message ||
-                "Unable to save shipment."
-            );
+            setError(err.response?.data?.message || "Unable to save shipment.");
         } finally {
             setSaving(false);
         }
     };
 
-    const handleCancelShipment = async (shipmentId) => {
-        const confirmed = window.confirm(
-            "Are you sure you want to cancel this shipment?"
-        );
-
-        if (!confirmed) return;
-
-        try {
-            setError("");
-            setSuccess("");
-
-            await api.delete(`/shipments/${shipmentId}`);
-
-            setSuccess("Shipment cancelled successfully!");
-            await fetchShipments();
-        } catch (err) {
-            setError(
-                err.response?.data?.message ||
-                "Unable to cancel shipment."
-            );
-        }
-    };
-
-    const handleFindMatches = async (shipmentId) => {
-        try {
-            setMatchingLoading((previous) => ({
-                ...previous,
-                [shipmentId]: true
-            }));
-
-            setMatchingErrors((previous) => ({
-                ...previous,
-                [shipmentId]: ""
-            }));
-
-            setMatchingResults((previous) => {
-                const updated = { ...previous };
-                delete updated[shipmentId];
-                return updated;
-            });
-
-            const response = await api.get(`/matching/${shipmentId}`);
-
-            setMatchingResults((previous) => ({
-                ...previous,
-                [shipmentId]: response.data.matches || []
-            }));
-
-        } catch (err) {
-            setMatchingErrors((previous) => ({
-                ...previous,
-                [shipmentId]:
-                    err.response?.data?.message ||
-                    "Unable to find matching trucks."
-            }));
-        } finally {
-            setMatchingLoading((previous) => ({
-                ...previous,
-                [shipmentId]: false
-            }));
-        }
-    };
-
-    const handleBookTruck = async (shipmentId, vehicleId) => {
-        const confirmed = window.confirm(
-            "Are you sure you want to book this truck for your shipment?"
-        );
-
-        if (!confirmed) return;
-
-        try {
-            setBookingLoading((previous) => ({
-                ...previous,
-                [shipmentId]: vehicleId
-            }));
-
-            setBookingErrors((previous) => ({
-                ...previous,
-                [shipmentId]: ""
-            }));
-
-            setError("");
-            setSuccess("");
-
-            const response = await api.post(
-                `/bookings/${shipmentId}/${vehicleId}`
-            );
-
-            setSuccess(
-                response.data.message || "Truck booked successfully!"
-            );
-
-            setMatchingResults((previous) => {
-                const updated = { ...previous };
-                delete updated[shipmentId];
-                return updated;
-            });
-
-            await fetchShipments();
-
-        } catch (err) {
-            setBookingErrors((previous) => ({
-                ...previous,
-                [shipmentId]:
-                    err.response?.data?.message ||
-                    "Unable to book this truck."
-            }));
-        } finally {
-            setBookingLoading((previous) => ({
-                ...previous,
-                [shipmentId]: null
-            }));
-        }
-    };
-
-    const formatDate = (date) => {
-        if (!date) return "Not specified";
-
-        return new Date(date).toLocaleDateString("en-IN", {
-            day: "2-digit",
-            month: "short",
-            year: "numeric"
+    const edit = (shipment) => {
+        setEditing(shipment);
+        setForm({
+            pickupAddress: shipment.pickupLocation?.address || "", pickupCity: shipment.pickupLocation?.city || "", pickupState: shipment.pickupLocation?.state || "", pickupPincode: shipment.pickupLocation?.pincode || "",
+            deliveryAddress: shipment.deliveryLocation?.address || "", deliveryCity: shipment.deliveryLocation?.city || "", deliveryState: shipment.deliveryLocation?.state || "", deliveryPincode: shipment.deliveryLocation?.pincode || "",
+            goodsType: shipment.goodsType || "", weightKg: shipment.weightKg || "", lengthCm: shipment.dimensions?.lengthCm || "", widthCm: shipment.dimensions?.widthCm || "", heightCm: shipment.dimensions?.heightCm || "",
+            description: shipment.description || "", pickupDate: shipment.pickupDate ? new Date(shipment.pickupDate).toISOString().slice(0, 10) : ""
         });
+        setOpen(true);
     };
 
-    const getStatusClass = (status) => {
-        return `shipment-status status-${status}`;
+    const findMatches = async (shipmentId) => {
+        setMatching(shipmentId);
+        setError("");
+        try {
+            const { data } = await api.get(`/matching/${shipmentId}`);
+            setMatches((current) => ({ ...current, [shipmentId]: data.matches || [] }));
+        } catch (err) {
+            setError(err.response?.data?.message || "Unable to find matching trucks.");
+        } finally {
+            setMatching("");
+        }
     };
 
-    const pendingCount = shipments.filter(
-        (shipment) => shipment.status === "pending"
-    ).length;
+    const book = async (shipmentId, vehicleId) => {
+        setConfirmation({ type: "book", shipmentId, vehicleId });
+    };
 
-    const activeCount = shipments.filter(
-        (shipment) =>
-            ["matching", "matched", "booked", "in_transit"].includes(
-                shipment.status
-            )
-    ).length;
+    const confirmAction = async () => {
+        if (!confirmation) return;
+        if (confirmation.type === "cancel") {
+            await cancelConfirmed(confirmation.shipmentId);
+            return;
+        }
+        await bookConfirmed(confirmation.shipmentId, confirmation.vehicleId);
+    };
 
-    const completedCount = shipments.filter(
-        (shipment) => shipment.status === "delivered"
-    ).length;
+    const bookConfirmed = async (shipmentId, vehicleId) => {
+        setBooking(`${shipmentId}:${vehicleId}`);
+        setError("");
+        setSuccess("");
+        try {
+            await api.post(`/bookings/${shipmentId}/${vehicleId}`);
+            setMatches((current) => ({ ...current, [shipmentId]: [] }));
+            setSuccess("Truck booked successfully.");
+            await load();
+        } catch (err) {
+            setError(err.response?.data?.message || "Unable to book truck.");
+        } finally {
+            setBooking("");
+            setConfirmation(null);
+        }
+    };
+
+    const cancel = async (shipmentId) => {
+        setConfirmation({ type: "cancel", shipmentId });
+    };
+
+    const cancelConfirmed = async (shipmentId) => {
+        try {
+            await api.delete(`/shipments/${shipmentId}`);
+            setSuccess("Shipment cancelled.");
+            await load();
+        } catch (err) {
+            setError(err.response?.data?.message || "Unable to cancel shipment.");
+        } finally {
+            setConfirmation(null);
+        }
+    };
+
+    const statusVariant = (status) => status === "delivered" ? "delivered" : status === "in_transit" ? "transit" : status === "booked" || status === "matched" ? "booked" : "pending";
 
     return (
-        <div className="shipment-page">
-
-            <header className="shipment-header">
-                <div>
-                    <span className="shipment-eyebrow">
-                        SMART FREIGHT MANAGEMENT
-                    </span>
-                    <h1>Shipment Management</h1>
-                    <p>Create and manage your goods transportation requests.</p>
-                </div>
-
-                <div className="shipment-header-actions">
-                    <button
-                        className="shipment-refresh-btn"
-                        onClick={fetchShipments}
-                        disabled={loading}
-                    >
-                        <RefreshCw size={17} />
-                        Refresh
-                    </button>
-
-                    <button
-                        className="shipment-add-btn"
-                        onClick={openAddForm}
-                    >
-                        <Plus size={18} />
-                        Create Shipment
-                    </button>
-                </div>
-            </header>
-
-            {success && (
-                <div className="shipment-alert shipment-alert-success">
-                    {success}
-                </div>
-            )}
-
-            {error && (
-                <div className="shipment-alert shipment-alert-error">
-                    {error}
-                </div>
-            )}
-
-            <section className="shipment-stats">
-                <article>
-                    <div className="shipment-stat-icon">
-                        <Package size={22} />
-                    </div>
-                    <div>
-                        <span>Total Shipments</span>
-                        <strong>{shipments.length}</strong>
-                    </div>
-                </article>
-
-                <article>
-                    <div className="shipment-stat-icon pending">
-                        <CalendarDays size={22} />
-                    </div>
-                    <div>
-                        <span>Pending</span>
-                        <strong>{pendingCount}</strong>
-                    </div>
-                </article>
-
-                <article>
-                    <div className="shipment-stat-icon active">
-                        <Truck size={22} />
-                    </div>
-                    <div>
-                        <span>Active Shipments</span>
-                        <strong>{activeCount}</strong>
-                    </div>
-                </article>
-
-                <article>
-                    <div className="shipment-stat-icon completed">
-                        <MapPin size={22} />
-                    </div>
-                    <div>
-                        <span>Delivered</span>
-                        <strong>{completedCount}</strong>
-                    </div>
-                </article>
-            </section>
-
-            {showForm && (
-                <div className="shipment-modal-overlay">
-                    <div className="shipment-modal">
-
-                        <div className="shipment-modal-header">
-                            <div>
-                                <h2>
-                                    {editingShipment
-                                        ? "Edit Shipment"
-                                        : "Create New Shipment"}
-                                </h2>
-                                <p>
-                                    Enter the shipment and transportation details.
-                                </p>
-                            </div>
-
-                            <button
-                                type="button"
-                                className="shipment-close-btn"
-                                onClick={resetForm}
-                                disabled={saving}
-                            >
-                                <X size={21} />
-                            </button>
-                        </div>
-
-                        <form onSubmit={handleSubmit}>
-
-                            <div className="shipment-form-section">
-                                <h3>
-                                    <MapPin size={18} />
-                                    Pickup Location
-                                </h3>
-
-                                <div className="shipment-form-grid">
-                                    <div className="shipment-field full">
-                                        <label>Pickup Address *</label>
-                                        <input
-                                            name="pickupAddress"
-                                            value={formData.pickupAddress}
-                                            onChange={handleChange}
-                                            placeholder="Street, building, area"
-                                            required
-                                        />
-                                    </div>
-
-                                    <div className="shipment-field">
-                                        <label>City *</label>
-                                        <input
-                                            name="pickupCity"
-                                            value={formData.pickupCity}
-                                            onChange={handleChange}
-                                            placeholder="Ahmedabad"
-                                            required
-                                        />
-                                    </div>
-
-                                    <div className="shipment-field">
-                                        <label>State *</label>
-                                        <input
-                                            name="pickupState"
-                                            value={formData.pickupState}
-                                            onChange={handleChange}
-                                            placeholder="Gujarat"
-                                            required
-                                        />
-                                    </div>
-
-                                    <div className="shipment-field">
-                                        <label>PIN Code *</label>
-                                        <input
-                                            name="pickupPincode"
-                                            value={formData.pickupPincode}
-                                            onChange={handleChange}
-                                            placeholder="380015"
-                                            inputMode="numeric"
-                                            pattern="[0-9]{6}"
-                                            maxLength={6}
-                                            required
-                                        />
-                                    </div>
-                                </div>
-                            </div>
-
-                            <div className="shipment-form-section">
-                                <h3>
-                                    <MapPin size={18} />
-                                    Delivery Location
-                                </h3>
-
-                                <div className="shipment-form-grid">
-                                    <div className="shipment-field full">
-                                        <label>Delivery Address *</label>
-                                        <input
-                                            name="deliveryAddress"
-                                            value={formData.deliveryAddress}
-                                            onChange={handleChange}
-                                            placeholder="Street, building, area"
-                                            required
-                                        />
-                                    </div>
-
-                                    <div className="shipment-field">
-                                        <label>City *</label>
-                                        <input
-                                            name="deliveryCity"
-                                            value={formData.deliveryCity}
-                                            onChange={handleChange}
-                                            placeholder="Delhi"
-                                            required
-                                        />
-                                    </div>
-
-                                    <div className="shipment-field">
-                                        <label>State *</label>
-                                        <input
-                                            name="deliveryState"
-                                            value={formData.deliveryState}
-                                            onChange={handleChange}
-                                            placeholder="Delhi"
-                                            required
-                                        />
-                                    </div>
-
-                                    <div className="shipment-field">
-                                        <label>PIN Code *</label>
-                                        <input
-                                            name="deliveryPincode"
-                                            value={formData.deliveryPincode}
-                                            onChange={handleChange}
-                                            placeholder="110001"
-                                            inputMode="numeric"
-                                            pattern="[0-9]{6}"
-                                            maxLength={6}
-                                            required
-                                        />
-                                    </div>
-                                </div>
-                            </div>
-
-                            <div className="shipment-form-section">
-                                <h3>
-                                    <Package size={18} />
-                                    Goods Details
-                                </h3>
-
-                                <div className="shipment-form-grid">
-                                    <div className="shipment-field">
-                                        <label>Goods Type *</label>
-                                        <input
-                                            name="goodsType"
-                                            value={formData.goodsType}
-                                            onChange={handleChange}
-                                            placeholder="Electronics, Furniture..."
-                                            required
-                                        />
-                                    </div>
-
-                                    <div className="shipment-field">
-                                        <label>Weight (kg) *</label>
-                                        <input
-                                            type="number"
-                                            name="weightKg"
-                                            min="1"
-                                            step="0.1"
-                                            value={formData.weightKg}
-                                            onChange={handleChange}
-                                            placeholder="250"
-                                            required
-                                        />
-                                    </div>
-
-                                    <div className="shipment-field">
-                                        <label>Length (cm)</label>
-                                        <input
-                                            type="number"
-                                            name="lengthCm"
-                                            min="0"
-                                            value={formData.lengthCm}
-                                            onChange={handleChange}
-                                            placeholder="100"
-                                        />
-                                    </div>
-
-                                    <div className="shipment-field">
-                                        <label>Width (cm)</label>
-                                        <input
-                                            type="number"
-                                            name="widthCm"
-                                            min="0"
-                                            value={formData.widthCm}
-                                            onChange={handleChange}
-                                            placeholder="80"
-                                        />
-                                    </div>
-
-                                    <div className="shipment-field">
-                                        <label>Height (cm)</label>
-                                        <input
-                                            type="number"
-                                            name="heightCm"
-                                            min="0"
-                                            value={formData.heightCm}
-                                            onChange={handleChange}
-                                            placeholder="60"
-                                        />
-                                    </div>
-
-                                    <div className="shipment-field">
-                                        <label>Pickup Date *</label>
-                                        <input
-                                            type="date"
-                                            name="pickupDate"
-                                            min={new Date().toLocaleDateString("en-CA")}
-                                            value={formData.pickupDate}
-                                            onChange={handleChange}
-                                            required
-                                        />
-                                    </div>
-
-                                    <div className="shipment-field full">
-                                        <label>Description</label>
-                                        <textarea
-                                            name="description"
-                                            value={formData.description}
-                                            onChange={handleChange}
-                                            placeholder="Additional information about your goods..."
-                                            rows="3"
-                                            maxLength={1000}
-                                        />
-                                    </div>
-                                </div>
-                            </div>
-
-                            <div className="shipment-form-actions">
-                                <button
-                                    type="button"
-                                    className="shipment-cancel-btn"
-                                    onClick={resetForm}
-                                    disabled={saving}
-                                >
-                                    Cancel
-                                </button>
-
-                                <button
-                                    type="submit"
-                                    className="shipment-submit-btn"
-                                    disabled={saving}
-                                >
-                                    {saving
-                                        ? "Saving..."
-                                        : editingShipment
-                                            ? "Update Shipment"
-                                            : "Create Shipment"}
-                                </button>
-                            </div>
-
-                        </form>
-                    </div>
-                </div>
-            )}
-
-            <section className="shipment-list-section">
-                <div className="shipment-list-heading">
-                    <div>
-                        <h2>My Shipments</h2>
-                        <p>All shipment requests created by your account.</p>
-                    </div>
-                    <span>{shipments.length} Records</span>
-                </div>
-
-                {loading ? (
-                    <div className="shipment-empty">
-                        Loading your shipments...
-                    </div>
-                ) : shipments.length === 0 ? (
-                    <div className="shipment-empty">
-                        <Package size={45} />
-                        <h3>No shipments yet</h3>
-                        <p>Create your first shipment to get started.</p>
-                        <button
-                            className="shipment-add-btn"
-                            onClick={openAddForm}
-                        >
-                            <Plus size={17} />
-                            Create Shipment
-                        </button>
-                    </div>
-                ) : (
-                    <div className="shipment-cards">
-                        {shipments.map((shipment) => (
-                            <article
-                                className="shipment-card"
-                                key={shipment._id}
-                            >
-                                <div className="shipment-card-top">
-                                    <div className="shipment-card-title">
-                                        <div className="shipment-card-icon">
-                                            <Package size={22} />
-                                        </div>
-                                        <div>
-                                            <h3>{shipment.goodsType}</h3>
-                                            <span>
-                                                ID: {shipment._id.slice(-8).toUpperCase()}
-                                            </span>
-                                        </div>
-                                    </div>
-
-                                    <span className={getStatusClass(shipment.status)}>
-                                        {statusLabels[shipment.status] || shipment.status}
-                                    </span>
-                                </div>
-
-                                <div className="shipment-route">
-                                    <div>
-                                        <span>FROM</span>
-                                        <strong>{shipment.pickupLocation?.city}</strong>
-                                        <small>{shipment.pickupLocation?.state}</small>
-                                    </div>
-
-                                    <ArrowRight size={21} />
-
-                                    <div>
-                                        <span>TO</span>
-                                        <strong>{shipment.deliveryLocation?.city}</strong>
-                                        <small>{shipment.deliveryLocation?.state}</small>
-                                    </div>
-                                </div>
-
-                                <div className="shipment-card-details">
-                                    <span>
-                                        <Weight size={15} />
-                                        {shipment.weightKg} kg
-                                    </span>
-
-                                    <span>
-                                        <CalendarDays size={15} />
-                                        {formatDate(shipment.pickupDate)}
-                                    </span>
-                                </div>
-
-                                {shipment.status === "booked" && shipment.bookedVehicleId && (
-                                    <div className="shipment-booked-info">
-                                        <CheckCircle size={18} />
-                                        <div>
-                                            <strong>Truck successfully booked</strong>
-                                            <p>
-                                                Assigned vehicle ID:{" "}
-                                                {typeof shipment.bookedVehicleId === "object"
-                                                    ? shipment.bookedVehicleId.vehicleNumber || shipment.bookedVehicleId._id
-                                                    : shipment.bookedVehicleId}
-                                            </p>
-                                        </div>
-                                    </div>
-                                )}
-
-                                {shipment.status === "pending" && (
-                                    <>
-                                        <div className="shipment-card-actions">
-                                            <button
-                                                className="shipment-edit-btn"
-                                                onClick={() => openEditForm(shipment)}
-                                            >
-                                                <Pencil size={15} />
-                                                Edit
-                                            </button>
-
-                                            <button
-                                                className="shipment-delete-btn"
-                                                onClick={() => handleCancelShipment(shipment._id)}
-                                            >
-                                                <Ban size={15} />
-                                                Cancel Shipment
-                                            </button>
-
-                                            <button
-                                                className="shipment-match-btn"
-                                                onClick={() => handleFindMatches(shipment._id)}
-                                                disabled={matchingLoading[shipment._id]}
-                                            >
-                                                <Truck size={16} />
-                                                {matchingLoading[shipment._id]
-                                                    ? "Finding Trucks..."
-                                                    : "Find Matching Trucks"}
-                                            </button>
-                                        </div>
-
-                                        {matchingErrors[shipment._id] && (
-                                            <div className="shipment-alert shipment-alert-error">
-                                                {matchingErrors[shipment._id]}
-                                            </div>
-                                        )}
-
-                                        {bookingErrors[shipment._id] && (
-                                            <div className="shipment-alert shipment-alert-error">
-                                                {bookingErrors[shipment._id]}
-                                            </div>
-                                        )}
-
-                                        {matchingResults[shipment._id] && (
-                                            <div className="shipment-matching-results">
-                                                <h4>
-                                                    Matching Trucks ({matchingResults[shipment._id].length})
-                                                </h4>
-
-                                                {matchingResults[shipment._id].length === 0 ? (
-                                                    <p>
-                                                        No compatible trucks found for this shipment.
-                                                    </p>
-                                                ) : (
-                                                    matchingResults[shipment._id].map((vehicle) => (
-                                                        <div
-                                                            className="shipment-match-card"
-                                                            key={vehicle._id}
-                                                        >
-                                                            <div>
-                                                                <strong>{vehicle.vehicleNumber}</strong>
-                                                                <p>
-                                                                    {vehicle.make || ""} {vehicle.model || ""}
-                                                                </p>
-                                                            </div>
-
-                                                            <div className="shipment-match-route">
-                                                                {vehicle.currentCity}
-                                                                <ArrowRight size={15} />
-                                                                {vehicle.destinationCity}
-                                                            </div>
-
-                                                            <div className="shipment-match-capacity">
-                                                                <span>Available capacity</span>
-                                                                <strong>
-                                                                    {vehicle.availableCapacityKg ??
-                                                                        vehicle.capacityKg} kg
-                                                                </strong>
-                                                            </div>
-
-                                                            <span className="shipment-match-badge">
-                                                                Compatible
-                                                            </span>
-
-                                                            <button
-                                                                className="shipment-book-btn"
-                                                                disabled={bookingLoading[shipment._id] !== undefined &&
-                                                                    bookingLoading[shipment._id] !== null}
-                                                                onClick={() => handleBookTruck(
-                                                                    shipment._id,
-                                                                    vehicle._id
-                                                                )}
-                                                            >
-                                                                {bookingLoading[shipment._id] === vehicle._id
-                                                                    ? "Booking..."
-                                                                    : "Book This Truck"}
-                                                            </button>
-                                                        </div>
-                                                    ))
-                                                )}
-                                            </div>
-                                        )}
-                                    </>
-                                )}
-                            </article>
-                        ))}
-                    </div>
-                )}
-            </section>
-
-        </div>
+        <DashboardShell user={user} title="Shipments" subtitle="Create and track goods transportation">
+            <div className="mb-6 flex items-end justify-between gap-4"><div><h1 className="text-[36px] font-bold leading-[44px]">My shipments</h1></div><div className="flex gap-2"><Button variant="secondary" size="icon" onClick={load} aria-label="Refresh"><RefreshCw size={17} /></Button><Button onClick={() => { setEditing(null); setForm(empty); setOpen(true); }}><Plus size={17} />Create shipment</Button></div></div>
+            {error && <Alert variant="destructive" className="mb-5">{error}</Alert>}
+            {success && <Alert variant="success" className="mb-5">{success}</Alert>}
+            {open && <Card className="mb-6 p-5"><div className="mb-5 flex items-start justify-between"><div><h2 className="text-[22px] font-semibold">{editing ? "Edit shipment" : "New shipment"}</h2><p className="mt-1 text-sm text-[#5e5e5e]">Enter route and goods details.</p></div><button onClick={() => setOpen(false)} className="flex h-10 w-10 items-center justify-center rounded-full bg-[#efefef]" aria-label="Close"><X size={18} /></button></div><form onSubmit={submit} className="space-y-6">
+                <section><h3 className="mb-4 font-semibold">Pickup</h3><div className="grid gap-4 sm:grid-cols-2"><div className="space-y-2 sm:col-span-2"><Label>Address</Label><Input name="pickupAddress" value={form.pickupAddress} onChange={change} required /></div><div className="space-y-2"><Label>City</Label><Input name="pickupCity" value={form.pickupCity} onChange={change} required /></div><div className="space-y-2"><Label>State</Label><Input name="pickupState" value={form.pickupState} onChange={change} required /></div><div className="space-y-2 sm:col-span-2"><Label>PIN code</Label><Input name="pickupPincode" value={form.pickupPincode} onChange={change} inputMode="numeric" pattern="[0-9]{6}" maxLength={6} required /></div></div></section>
+                <section><h3 className="mb-4 font-semibold">Delivery</h3><div className="grid gap-4 sm:grid-cols-2"><div className="space-y-2 sm:col-span-2"><Label>Address</Label><Input name="deliveryAddress" value={form.deliveryAddress} onChange={change} required /></div><div className="space-y-2"><Label>City</Label><Input name="deliveryCity" value={form.deliveryCity} onChange={change} required /></div><div className="space-y-2"><Label>State</Label><Input name="deliveryState" value={form.deliveryState} onChange={change} required /></div><div className="space-y-2 sm:col-span-2"><Label>PIN code</Label><Input name="deliveryPincode" value={form.deliveryPincode} onChange={change} inputMode="numeric" pattern="[0-9]{6}" maxLength={6} required /></div></div></section>
+                <section><h3 className="mb-4 font-semibold">Goods</h3><div className="grid gap-4 sm:grid-cols-2"><div className="space-y-2"><Label>Goods type</Label><Input name="goodsType" value={form.goodsType} onChange={change} required /></div><div className="space-y-2"><Label>Weight (kg)</Label><Input name="weightKg" type="number" min="1" value={form.weightKg} onChange={change} required /></div><div className="space-y-2"><Label>Pickup date</Label><Input name="pickupDate" type="date" value={form.pickupDate} onChange={change} required /></div><div className="space-y-2"><Label>Dimensions (optional)</Label><div className="grid grid-cols-3 gap-2"><Input name="lengthCm" type="number" placeholder="L cm" value={form.lengthCm} onChange={change} /><Input name="widthCm" type="number" placeholder="W cm" value={form.widthCm} onChange={change} /><Input name="heightCm" type="number" placeholder="H cm" value={form.heightCm} onChange={change} /></div></div><div className="space-y-2 sm:col-span-2"><Label>Description</Label><textarea name="description" value={form.description} onChange={change} /></div></div></section>
+                <div className="flex gap-3"><Button type="submit" disabled={saving}>{saving ? "Saving..." : editing ? "Save changes" : "Create shipment"}</Button><Button type="button" variant="secondary" onClick={() => setOpen(false)}>Cancel</Button></div>
+            </form></Card>}
+            {loading ? <Card className="p-10 text-center text-sm text-[#5e5e5e]">Loading shipments...</Card> : shipments.length === 0 ? <Card className="p-10 text-center"><Package className="mx-auto text-[#9a9a9a]" /><h2 className="mt-3 font-semibold">No shipments yet</h2><p className="mt-2 text-sm text-[#5e5e5e]">Create your first shipment to find a truck.</p></Card> : <div className="space-y-4">{shipments.map((shipment) => <Card key={shipment._id} className="p-5"><div className="flex flex-wrap items-start justify-between gap-3"><div><p className="font-mono text-xs text-[#9a9a9a]">#{shipment._id.slice(-8).toUpperCase()}</p><h2 className="mt-1 text-[18px] font-semibold">{shipment.goodsType}</h2></div><Badge variant={statusVariant(shipment.status)}>{shipment.status.replaceAll("_", " ")}</Badge></div><div className="mt-5 grid gap-4 border-y border-[#e5e5e5] py-5 sm:grid-cols-3"><div><p className="text-xs text-[#9a9a9a]">Route</p><p className="mt-1 text-sm font-medium">{shipment.pickupLocation?.city} → {shipment.deliveryLocation?.city}</p></div><div><p className="text-xs text-[#9a9a9a]">Weight</p><p className="mt-1 text-sm font-medium tabular-nums">{Number(shipment.weightKg || 0).toLocaleString("en-IN")} kg</p></div><div><p className="text-xs text-[#9a9a9a]">Pickup</p><p className="mt-1 text-sm font-medium">{shipment.pickupDate ? new Date(shipment.pickupDate).toLocaleDateString("en-IN") : "Not set"}</p></div></div><div className="mt-4 flex flex-wrap gap-2">{shipment.status === "pending" && <><Button variant="secondary" onClick={() => edit(shipment)}>Edit</Button><Button variant="secondary" onClick={() => findMatches(shipment._id)} disabled={matching === shipment._id}><Search size={16} />{matching === shipment._id ? "Finding..." : "Find trucks"}</Button><Button variant="destructive" onClick={() => cancel(shipment._id)}>Cancel</Button></>}</div>{matches[shipment._id]?.length > 0 && <div className="mt-5 grid gap-3 md:grid-cols-2">{matches[shipment._id].map((vehicle) => <Card key={vehicle._id} className="p-4"><div className="flex items-start justify-between">            <span className="flex h-10 w-10 items-center justify-center rounded-full bg-[#efefef]"><Package size={18} /></span><Badge variant="delivered">Verified</Badge></div><p className="mt-3 font-mono text-sm font-semibold">{vehicle.vehicleNumber}</p><p className="mt-1 text-sm text-[#5e5e5e]">{vehicle.availableCapacityKg ?? vehicle.capacityKg} kg available</p><Button className="mt-4 w-full" disabled={booking === `${shipment._id}:${vehicle._id}`} onClick={() => book(shipment._id, vehicle._id)}>Book truck</Button></Card>)}</div>}</Card>)}</div>}
+            <ConfirmDialog
+                open={Boolean(confirmation)}
+                onOpenChange={(open) => !open && setConfirmation(null)}
+                title={confirmation?.type === "cancel" ? "Cancel this shipment?" : "Book this vehicle?"}
+                description={confirmation?.type === "cancel" ? "The shipment and any reserved capacity will be released." : "Confirm that you want to reserve this vehicle for the shipment."}
+                confirmLabel={confirmation?.type === "cancel" ? "Cancel shipment" : "Confirm booking"}
+                destructive={confirmation?.type === "cancel"}
+                onConfirm={confirmAction}
+                loading={Boolean(booking)}
+            />
+        </DashboardShell>
     );
 }
 

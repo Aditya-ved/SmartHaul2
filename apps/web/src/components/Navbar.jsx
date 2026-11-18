@@ -1,194 +1,110 @@
-
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import {
-    Truck,
-    UserCircle,
-    LogOut,
-    LayoutDashboard,
-    Menu,
-    X
-} from "lucide-react";
+import { LayoutDashboard, LogOut, Menu, Bell, X } from "lucide-react";
+import BrandMark from "./BrandMark";
 import api from "../services/api";
+import { Button } from "./ui/button";
+import ThemeToggle from "./ThemeToggle";
+import ConfirmDialog from "./ConfirmDialog";
 
 function Navbar() {
     const [user, setUser] = useState(null);
-    const [checkingAuth, setCheckingAuth] = useState(true);
-    const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-
-    const getDashboardPath = (role) => {
-        if (role === "admin") return "/admin-dashboard";
-        if (role === "driver") return "/driver-dashboard";
-        return "/dashboard";
-    };
+    const [checking, setChecking] = useState(true);
+    const [open, setOpen] = useState(false);
+    const [logoutOpen, setLogoutOpen] = useState(false);
 
     useEffect(() => {
         let active = true;
-
-        const checkUser = async () => {
-            const token = localStorage.getItem("smarthaul_token");
-
-            if (!token) {
-                if (active) {
-                    setUser(null);
-                    setCheckingAuth(false);
-                }
+        const load = async () => {
+            if (!localStorage.getItem("smarthaul_token")) {
+                if (active) setChecking(false);
                 return;
             }
-
             try {
-                const response = await api.get("/auth/me");
-
-                if (active) {
-                    setUser(response.data.user);
-                }
+                const { data } = await api.get("/auth/me");
+                if (active) setUser(data.user);
             } catch {
                 localStorage.removeItem("smarthaul_token");
-
-                if (active) {
-                    setUser(null);
-                }
             } finally {
-                if (active) {
-                    setCheckingAuth(false);
-                }
+                if (active) setChecking(false);
             }
         };
-
-        checkUser();
-
-        window.addEventListener("auth-change", checkUser);
-
+        load();
+        window.addEventListener("auth-change", load);
         return () => {
             active = false;
-            window.removeEventListener("auth-change", checkUser);
+            window.removeEventListener("auth-change", load);
         };
     }, []);
 
-    const handleLogout = () => {
+    const dashboard = user?.role === "admin"
+        ? "/admin-dashboard"
+        : user?.role === "driver"
+            ? "/driver-dashboard"
+            : "/dashboard";
+
+    const logout = () => {
         localStorage.removeItem("smarthaul_token");
-        setUser(null);
-        setMobileMenuOpen(false);
-
         window.dispatchEvent(new Event("auth-change"));
-
         window.location.replace("/");
     };
 
-    const closeMobileMenu = () => {
-        setMobileMenuOpen(false);
-    };
-
-    const dashboardPath = user
-        ? getDashboardPath(user.role)
-        : "/login";
-
-    const canManageFleet = user &&
-        ["individual_owner", "company_admin"].includes(user.role);
-
     return (
-        <header className="navbar">
-            <Link
-                to="/"
-                className="brand"
-                onClick={closeMobileMenu}
-            >
-                <span className="brand-icon">
-                    <Truck size={25} />
-                </span>
-
-                <span>
-                    Smart<span className="brand-highlight">Haul</span>
-                </span>
-            </Link>
-
-            <nav className={`nav-links ${mobileMenuOpen ? "mobile-open" : ""}`}>
-                <a href="/#services" onClick={closeMobileMenu}>
-                    Services
-                </a>
-
-                <a href="/#how-it-works" onClick={closeMobileMenu}>
-                    How It Works
-                </a>
-
-                <a href="/#about" onClick={closeMobileMenu}>
-                    About Us
-                </a>
-
-                {canManageFleet && (
-                    <Link
-                        to="/fleet"
-                        className="mobile-fleet-link"
-                        onClick={closeMobileMenu}
-                    >
-                        Fleet Management
-                    </Link>
-                )}
-            </nav>
-
-            <div className="nav-actions">
-                {!checkingAuth && (
-                    user ? (
-                        <div className="nav-user">
-                            <Link
-                                to={dashboardPath}
-                                className="profile-link"
-                                onClick={closeMobileMenu}
-                            >
-                                <UserCircle size={22} />
-                                <span>{user.fullName}</span>
-                            </Link>
-
-                            {canManageFleet && (
-                                <Link
-                                    to="/fleet"
-                                    className="dashboard-link"
-                                    onClick={closeMobileMenu}
-                                >
-                                    <Truck size={17} />
-                                    My Fleet
-                                </Link>
+        <header className="sticky top-0 z-50 h-16 border-b border-[#e5e5e5] bg-white/95 backdrop-blur">
+            <div className="mx-auto flex h-full max-w-[1200px] items-center justify-between px-4 sm:px-8">
+                <Link to="/" className="flex items-center gap-2 text-[20px] font-bold" onClick={() => setOpen(false)}>
+                    <BrandMark compact />
+                    SmartHaul
+                </Link>
+                <nav className="hidden items-center gap-7 md:flex">
+                    <Link to="/marketplace" className="text-sm font-medium">Marketplace</Link>
+                    <Link to="/tracking" className="text-sm font-medium">Tracking</Link>
+                    <a href="/#services" className="text-sm font-medium">Services</a>
+                    <a href="/#how-it-works" className="text-sm font-medium">How it works</a>
+                </nav>
+                <div className="hidden items-center gap-2 md:flex">
+                    <ThemeToggle />
+                    {!checking && (user ? (
+                        <>
+                            {["sender", "individual_owner", "company_admin"].includes(user.role) && (
+                                <Button asChild variant="ghost" size="icon"><Link to="/notifications" aria-label="Notifications"><Bell size={18} /></Link></Button>
                             )}
-
-                            <Link
-                                to={dashboardPath}
-                                className="dashboard-link"
-                                onClick={closeMobileMenu}
-                            >
-                                <LayoutDashboard size={17} />
-                                Dashboard
-                            </Link>
-
-                            <button
-                                onClick={handleLogout}
-                                className="logout-link"
-                            >
-                                <LogOut size={17} />
-                                Log out
-                            </button>
-                        </div>
+                            <Button asChild variant="ghost"><Link to={dashboard}><LayoutDashboard size={17} /> Dashboard</Link></Button>
+                            <Button variant="secondary" onClick={() => setLogoutOpen(true)}><LogOut size={17} /> Log out</Button>
+                        </>
                     ) : (
                         <>
-                            <Link to="/login" className="login-link">
-                                Log in
-                            </Link>
-
-                            <Link to="/register" className="nav-button">
-                                Get Started
-                            </Link>
+                            <Button asChild variant="ghost"><Link to="/login">Log in</Link></Button>
+                            <Button asChild><Link to="/register">Sign up</Link></Button>
                         </>
-                    )
-                )}
+                    ))}
+                </div>
+                <button className="flex h-10 w-10 items-center justify-center rounded-full bg-[#efefef] md:hidden" onClick={() => setOpen((value) => !value)} aria-label="Toggle menu">
+                    {open ? <X size={20} /> : <Menu size={20} />}
+                </button>
             </div>
-
-            <button
-                className="navbar-menu-toggle"
-                onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-                aria-label="Toggle navigation menu"
-                aria-expanded={mobileMenuOpen}
-            >
-                {mobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
-            </button>
+            {open && (
+                <nav className="absolute left-0 top-16 w-full border-b border-[#e5e5e5] bg-white px-4 py-5 md:hidden">
+                    <div className="flex flex-col gap-4">
+                        <Link to="/marketplace" onClick={() => setOpen(false)}>Marketplace</Link>
+                        <Link to="/tracking" onClick={() => setOpen(false)}>Tracking</Link>
+                        {user ? (
+                            <><Link to={dashboard} onClick={() => setOpen(false)}>Dashboard</Link><ThemeToggle iconOnly={false} /><Button variant="secondary" onClick={() => setLogoutOpen(true)}>Log out</Button></>
+                        ) : (
+                            <div className="grid grid-cols-2 gap-3"><Button asChild variant="secondary"><Link to="/login">Log in</Link></Button><Button asChild><Link to="/register">Sign up</Link></Button></div>
+                        )}
+                        <ConfirmDialog
+                            open={logoutOpen}
+                            onOpenChange={setLogoutOpen}
+                            title="Log out of SmartHaul?"
+                            description="You will need to sign in again to access your workspace."
+                            confirmLabel="Log out"
+                            destructive
+                            onConfirm={logout}
+                        />
+                    </div>
+                </nav>
+            )}
         </header>
     );
 }
