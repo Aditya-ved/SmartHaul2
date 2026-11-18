@@ -87,4 +87,6 @@ After deployment:
 4. Redeploy both projects.
 5. Open `https://backend-domain.vercel.app/api/health` to verify the API.
 
+Set `CLIENT_ORIGIN` in the backend project to the exact frontend production and preview origins. For the current SmartHaul frontend project, preview origins matching `https://smart-haul2-*.vercel.app` are also accepted.
+
 Use comma-separated values in `CLIENT_ORIGIN` if the frontend has preview and production domains.

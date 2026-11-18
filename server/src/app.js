@@ -25,14 +25,20 @@ app.use(cors({
             .map((item) => item.trim())
             .filter(Boolean);
 
-        if (!origin || allowedOrigins.includes(origin)) {
+        const isSmartHaulPreview =
+            /^https:\/\/smart-haul2(?:-[a-z0-9-]+)?\.vercel\.app$/i.test(origin || "");
+
+        if (!origin || allowedOrigins.includes(origin) || isSmartHaulPreview) {
             callback(null, true);
             return;
         }
 
-        callback(new Error("Origin is not allowed by CORS"));
+        callback(null, false);
     },
-    credentials: true
+    credentials: true,
+    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization", "Idempotency-Key"],
+    optionsSuccessStatus: 204
 }));
 app.use(express.json({ limit: "1mb" }));
 app.use("/api/auth", rateLimit({
