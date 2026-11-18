@@ -19,7 +19,19 @@ const app = express();
 
 app.use(helmet());
 app.use(cors({
-    origin: (process.env.CLIENT_ORIGIN || "http://localhost:5173").split(",").map((origin) => origin.trim()),
+    origin: (origin, callback) => {
+        const allowedOrigins = (process.env.CLIENT_ORIGIN || "http://localhost:5173")
+            .split(",")
+            .map((item) => item.trim())
+            .filter(Boolean);
+
+        if (!origin || allowedOrigins.includes(origin)) {
+            callback(null, true);
+            return;
+        }
+
+        callback(new Error("Origin is not allowed by CORS"));
+    },
     credentials: true
 }));
 app.use(express.json({ limit: "1mb" }));

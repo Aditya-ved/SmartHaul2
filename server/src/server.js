@@ -8,9 +8,13 @@ const PORT = process.env.PORT || 5000;
 const startServer = async () => {
     await connectDB();
 
-    app.listen(PORT, () => {
+    return app.listen(PORT, () => {
         console.log(`SmartHaul server running on port ${PORT}`);
     });
 };
 
-startServer();
+if (require.main === module) {
+    startServer();
+}
+
+module.exports = { app, startServer };
