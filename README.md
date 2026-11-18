@@ -59,7 +59,7 @@ Deploy the frontend and backend as two separate Vercel projects.
 - Environment variable:
 
 ```text
-VITE_API_URL=https://your-backend-domain.vercel.app/api
+API_URL=https://your-backend-domain.vercel.app
 ```
 
 The frontend [Vercel configuration](/C:/Users/MANAS/Desktop/SmartHaul/apps/web/vercel.json) rewrites React Router paths to `index.html`.
@@ -82,7 +82,7 @@ The backend [Vercel configuration](/C:/Users/MANAS/Desktop/SmartHaul/server/verc
 After deployment:
 
 1. Copy the backend Vercel domain.
-2. Set `VITE_API_URL=https://backend-domain.vercel.app/api` in the frontend project.
+2. Set `API_URL=https://backend-domain.vercel.app` in the frontend project.
 3. Set `CLIENT_ORIGIN=https://frontend-domain.vercel.app` in the backend project.
 4. Redeploy both projects.
 5. Open `https://backend-domain.vercel.app/api/health` to verify the API.
